@@ -51,8 +51,17 @@
             </a>
             <div>
                 <a href="/" class="mr-4 hover:underline">Home</a>
-                <a href="/login" class="mr-4 hover:underline">Login</a>
-                <a href="/register" class="hover:underline">Register</a>
+                <!-- Logged out navigation -->
+                <span class="logged-out">
+                    <a href="/login" class="mr-4 hover:underline">Login</a>
+                    <a href="/register" class="hover:underline">Register</a>
+                </span>
+                <!-- Logged in navigation -->
+                <span class="logged-in hidden">
+                    <a href="/dashboard" class="mr-4 hover:underline">Dashboard</a>
+                    <a href="/profile" class="mr-4 hover:underline">Profile</a>
+                    <button onclick="logout()" class="hover:underline">Logout</button>
+                </span>
             </div>
         </div>
     </nav>
@@ -79,5 +88,10 @@
             </div>
         </div>
     </footer>
+
+    <!-- Firebase SDKs -->
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
+    <script type="module" src="/js/firebase-client.js"></script>
 </body>
 </html>

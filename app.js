@@ -4,7 +4,13 @@ import bodyParser from 'body-parser';
 import path from 'path';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
+
+// Import routes
+import authRoutes from './routes/auth.js';
+import profileRoutes from './routes/profile.js';
+import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
 // Initialize env variables
 dotenv.config();
@@ -20,6 +26,7 @@ const app = express();
 app.use(morgan('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Set up Handlebars
@@ -30,23 +37,39 @@ app.engine('handlebars', engine({
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
-// Routes - Define ALL your routes before error handlers
+// API Routes
+app.use('/api', authRoutes);
+app.use('/api', profileRoutes);
+
+// Public Routes
 app.get('/', (req, res) => {
   res.render('home', { title: 'RxPlain - Prescriptions Explained' });
 });
 
-app.get('/login', (req, res) => {
+app.get('/login', redirectIfAuthenticated, (req, res) => {
   res.render('login', { title: 'Login - RxPlain' });
 });
 
-app.get('/register', (req, res) => {
+app.get('/register', redirectIfAuthenticated, (req, res) => {
   res.render('register', { title: 'Create Account - RxPlain' });
 });
 
-app.get('/dashboard', (req, res) => {
-  res.render('dashboard', { title: 'Dashboard - RxPlain' });
+// Protected Routes
+app.get('/dashboard', isAuthenticated, (req, res) => {
+  res.render('dashboard', { 
+    title: 'Dashboard - RxPlain',
+    user: req.user
+  });
 });
 
+app.get('/profile', isAuthenticated, (req, res) => {
+  res.render('profile', { 
+    title: 'My Profile - RxPlain',
+    user: req.user
+  });
+});
+
+// Other Routes
 app.get('/about', (req, res) => {
   res.render('about', { title: 'About - RxPlain' });
 });
