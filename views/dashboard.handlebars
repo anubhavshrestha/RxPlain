@@ -1,0 +1,40 @@
+<div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+    <div class="p-6">
+        <h2 class="text-2xl font-semibold mb-4">Your Document Dashboard</h2>
+        
+        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
+            <svg class="w-12 h-12 mx-auto text-health-500 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <p class="text-gray-600 mb-2">Upload a new document</p>
+            <button class="btn btn-primary">Browse Files</button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-md overflow-hidden">
+    <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">Recent Documents</h2>
+            <div class="relative">
+                <input type="text" placeholder="Search documents" class="px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent">
+                <svg class="w-5 h-5 text-gray-400 absolute right-3 top-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+            </div>
+        </div>
+        
+        <div class="space-y-4 mb-6">
+            <!-- Empty state -->
+            <div class="text-center py-8 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p>You haven't uploaded any documents yet.</p>
+                <p>Upload your first document to get started!</p>
+            </div>
+            
+            <!-- Sample document items will be added when documents exist -->
+        </div>
+    </div>
+</div>
