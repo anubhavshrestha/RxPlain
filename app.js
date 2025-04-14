@@ -6,6 +6,7 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
+import { db } from './config/firebase-admin.js';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -62,11 +63,44 @@ app.get('/dashboard', isAuthenticated, (req, res) => {
   });
 });
 
-app.get('/profile', isAuthenticated, (req, res) => {
-  res.render('profile', { 
-    title: 'My Profile - RxPlain',
-    user: req.user
-  });
+app.get('/profile', isAuthenticated, async (req, res) => {
+  try {
+    // Get user data from Firestore
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    
+    if (!userDoc.exists) {
+      // Create user document if it doesn't exist
+      await db.collection('users').doc(req.user.uid).set({
+        email: req.user.email,
+        name: req.user.name || '',
+        phone: '',
+        birthdate: '',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+      
+      // Get the newly created document
+      const newUserDoc = await db.collection('users').doc(req.user.uid).get();
+      const userData = newUserDoc.data();
+      
+      res.render('profile', { 
+        title: 'My Profile - RxPlain',
+        user: { ...req.user, ...userData }
+      });
+    } else {
+      const userData = userDoc.data();
+      res.render('profile', { 
+        title: 'My Profile - RxPlain',
+        user: { ...req.user, ...userData }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching user profile:', error);
+    res.render('profile', { 
+      title: 'My Profile - RxPlain',
+      user: req.user
+    });
+  }
 });
 
 // Other Routes

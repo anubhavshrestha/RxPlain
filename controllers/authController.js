@@ -30,8 +30,8 @@ export const createSession = async (req, res) => {
     const options = {
       maxAge: SESSION_EXPIRES_IN,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
+      secure: false, // Set to false for development
+      sameSite: 'lax'  // Changed from 'strict' to 'lax' for better compatibility
     };
 
     // Set the cookie

@@ -74,6 +74,11 @@
 <script type="module">
     import { getAuth, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
     
+    // Fetch user profile data when the page loads
+    window.addEventListener('load', () => {
+        window.fetchUserProfile();
+    });
+    
     // Profile Update Form
     const profileForm = document.getElementById('profile-form');
     const successMessage = document.getElementById('success-message');
@@ -87,34 +92,14 @@
         const birthdate = document.getElementById('birthdate').value;
         
         try {
-            // Update user profile in Firestore
-            const response = await fetch('/api/profile', {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name,
-                    phone,
-                    birthdate
-                })
-            });
+            await window.updateProfile(name, phone, birthdate);
+            successMessage.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
             
-            const result = await response.json();
-            
-            if (result.success) {
-                successMessage.classList.remove('hidden');
-                errorMessage.classList.add('hidden');
-                
-                // Hide success message after 3 seconds
-                setTimeout(() => {
-                    successMessage.classList.add('hidden');
-                }, 3000);
-            } else {
-                errorMessage.textContent = result.error || 'Error updating profile';
-                errorMessage.classList.remove('hidden');
+            // Hide success message after 3 seconds
+            setTimeout(() => {
                 successMessage.classList.add('hidden');
-            }
+            }, 3000);
         } catch (error) {
             errorMessage.textContent = error.message;
             errorMessage.classList.remove('hidden');

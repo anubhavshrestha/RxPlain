@@ -36,17 +36,49 @@ export const updateUserProfile = async (req, res) => {
     const uid = req.user.uid;
     const { name, phone, birthdate } = req.body;
     
-    // Update user data in Firestore
-    await db.collection('users').doc(uid).update({
-      name,
-      phone,
-      birthdate,
-      updatedAt: new Date()
-    });
+    if (!name) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
     
-    res.status(200).json({ success: true });
+    // Check if document exists
+    const userDoc = await db.collection('users').doc(uid).get();
+    
+    if (!userDoc.exists) {
+      // Create new document if it doesn't exist
+      await db.collection('users').doc(uid).set({
+        name,
+        email: req.user.email,
+        phone: phone || '',
+        birthdate: birthdate || '',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    } else {
+      // Update existing document
+      await db.collection('users').doc(uid).update({
+        name,
+        phone: phone || '',
+        birthdate: birthdate || '',
+        updatedAt: new Date()
+      });
+    }
+    
+    // Get the updated user data
+    const updatedDoc = await db.collection('users').doc(uid).get();
+    const userData = updatedDoc.data();
+    
+    res.status(200).json({ 
+      success: true,
+      profile: {
+        name: userData.name,
+        email: userData.email,
+        phone: userData.phone || '',
+        birthdate: userData.birthdate || '',
+        createdAt: userData.createdAt
+      }
+    });
   } catch (error) {
     console.error('Error updating user profile:', error);
-    res.status(500).json({ error: 'Error updating user profile' });
+    res.status(500).json({ error: error.message || 'Error updating user profile' });
   }
 };
