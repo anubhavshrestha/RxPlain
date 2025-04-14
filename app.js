@@ -11,6 +11,7 @@ import { db } from './config/firebase-admin.js';
 // Import routes
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
+import documentRoutes from './routes/documents.js';
 import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
 // Initialize env variables
@@ -41,6 +42,7 @@ app.set('views', path.join(__dirname, 'views'));
 // API Routes
 app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
+app.use('/api/documents', documentRoutes);
 
 // Public Routes
 app.get('/', (req, res) => {

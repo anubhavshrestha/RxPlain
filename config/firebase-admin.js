@@ -11,7 +11,7 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: `https://${process.env.FIREBASE_PROJECT_ID}.firebaseio.com`,
-  storageBucket: `${process.env.FIREBASE_PROJECT_ID}.appspot.com`
+  storageBucket: 'rxplain.firebasestorage.app'
 });
 
 export const db = admin.firestore();
