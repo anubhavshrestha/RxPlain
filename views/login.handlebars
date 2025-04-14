@@ -1,58 +1,45 @@
-<div class="max-w-md mx-auto bg-white rounded-xl shadow-md overflow-hidden mt-10">
-    <div class="p-8">
-        <div class="text-center mb-8">
-            <h2 class="text-2xl font-bold text-gray-800">Welcome Back</h2>
-            <p class="text-gray-600">Sign in to access your medical documents</p>
-        </div>
-        
-        <form id="login-form">
-            <div class="mb-4">
-                <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-                <input type="email" id="email" name="email" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent" required>
-            </div>
-            
-            <div class="mb-6">
-                <div class="flex items-center justify-between mb-1">
-                    <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-                    <a href="/forgot-password" class="text-sm text-health-600 hover:underline">Forgot password?</a>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="text-center">Login</h3>
                 </div>
-                <input type="password" id="password" name="password" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent" required>
+                <div class="card-body">
+                    <form id="loginForm">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email address</label>
+                            <input type="email" class="form-control" id="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="password" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">Login</button>
+                        </div>
+                    </form>
+                    <div class="mt-3 text-center">
+                        <p>Don't have an account? <a href="/register">Register here</a></p>
+                    </div>
+                </div>
             </div>
-            
-            <div id="error-message" class="mb-4 text-red-600 text-sm hidden"></div>
-            
-            <button type="submit" class="w-full bg-health-600 text-white py-2 px-4 rounded-md hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-health-500 focus:ring-offset-2">Sign In</button>
-        </form>
-        
-        <div class="mt-6 text-center">
-            <p class="text-sm text-gray-600">Don't have an account? <a href="/register" class="text-health-600 hover:underline">Sign up</a></p>
         </div>
     </div>
 </div>
 
-<script type="module">
-    const loginForm = document.getElementById('login-form');
-    const errorMessage = document.getElementById('error-message');
-    
-    loginForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        
-        try {
-            errorMessage.classList.add('hidden');
-            
-            // Call the login function from firebase-client.js
-            const result = await window.login(email, password);
-            
-            if (result && !result.success) {
-                errorMessage.textContent = result.error;
-                errorMessage.classList.remove('hidden');
-            }
-        } catch (error) {
-            errorMessage.textContent = error.message;
-            errorMessage.classList.remove('hidden');
-        }
-    });
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+
+    try {
+        await firebase.auth().signInWithEmailAndPassword(email, password);
+        window.location.href = '/';
+    } catch (error) {
+        console.error('Error signing in:', error);
+        alert(error.message);
+    }
+});
 </script>

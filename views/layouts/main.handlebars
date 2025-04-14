@@ -3,99 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{title}}</title>
-    <!-- Add Tailwind CSS via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              health: {
-                50: '#f0fdf4',
-                100: '#dcfce7',
-                200: '#bbf7d0',
-                300: '#86efac',
-                400: '#4ade80',
-                500: '#22c55e',
-                600: '#16a34a',
-                700: '#15803d',
-                800: '#166534',
-                900: '#14532d',
-              }
-            }
-          }
-        }
-      }
-    </script>
-    <style type="text/tailwindcss">
-      @layer components {
-        .btn {
-          @apply px-4 py-2 rounded-md font-medium transition-colors;
-        }
-        
-        .btn-primary {
-          @apply bg-health-600 text-white hover:bg-health-700;
-        }
-      }
-    </style>
+    <title>RxPlain</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/css/style.css">
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-health-600 text-white p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <a href="/" class="flex items-center">
-                <svg class="w-8 h-8 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <h1 class="text-2xl font-bold">RxPlain</h1>
-            </a>
-            <div>
-                <a href="/" class="mr-4 hover:underline">Home</a>
-                <!-- Auth loading state -->
-                <span id="auth-loading" class="hidden">
-                    <span class="inline-block animate-pulse">Loading...</span>
-                </span>
-                <!-- Logged out navigation -->
-                <span id="logged-out-nav" class="logged-out hidden">
-                    <a href="/login" class="mr-4 hover:underline">Login</a>
-                    <a href="/register" class="hover:underline">Register</a>
-                </span>
-                <!-- Logged in navigation -->
-                <span id="logged-in-nav" class="logged-in hidden">
-                    <a href="/dashboard" class="mr-4 hover:underline">Dashboard</a>
-                    <a href="/profile" class="mr-4 hover:underline">Profile</a>
-                    <button onclick="window.logout()" class="hover:underline">Logout</button>
-                </span>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">RxPlain</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    {{#if user}}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/profile">Profile</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#" id="logoutBtn">Logout</a>
+                        </li>
+                    {{else}}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/login">Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/register">Register</a>
+                        </li>
+                    {{/if}}
+                </ul>
             </div>
         </div>
     </nav>
-    
-    <main class="container mx-auto p-4">
+
+    <!-- Main Content -->
+    <main class="container mt-4">
         {{{body}}}
     </main>
-    
-    <footer class="bg-health-600 text-white p-4 mt-8">
-        <div class="container mx-auto">
-            <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <h3 class="text-lg font-semibold">RxPlain</h3>
-                    <p class="text-sm">Making medical documents easy to understand</p>
-                </div>
-                <div class="flex space-x-4">
-                    <a href="/about" class="hover:underline">About</a>
-                    <a href="/privacy" class="hover:underline">Privacy</a>
-                    <a href="/terms" class="hover:underline">Terms</a>
-                </div>
-            </div>
-            <div class="mt-4 text-center text-sm">
-                <p>&copy; 2025 RxPlain. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
 
-    <!-- Firebase SDKs -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
-    <script type="module" src="/js/firebase-client.js"></script>
+    <!-- Firebase Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-auth-compat.js"></script>
+    
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom Firebase Client Script -->
+    <script src="/js/firebase-client.js"></script>
 </body>
 </html>
