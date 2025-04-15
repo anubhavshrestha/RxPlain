@@ -1,3 +1,5 @@
 node_modules/
 .env
 .DS_Store
+config/firebase-admin.js
+config/firebase-admin.json
