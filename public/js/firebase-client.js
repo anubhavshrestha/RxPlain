@@ -76,7 +76,7 @@ function initializeFirebase() {
   };
 
   // Register function
-  window.register = async (email, password, name) => {
+  window.register = async (email, password, name, role) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Get the ID token and create session
@@ -86,16 +86,31 @@ function initializeFirebase() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken })
       });
-      // Save additional user data
-      await fetch('/api/users', {
+
+      // Prepare user data
+      const userData = {
+        uid: userCredential.user.uid,
+        email: email,
+        displayName: name,
+        username: email.split('@')[0], // Use email prefix as username
+        role: role
+      };
+
+      // Add doctor-specific fields if role is doctor
+      if (role === 'doctor') {
+        const specialization = document.getElementById('specialization').value;
+        const licenseNumber = document.getElementById('license-number').value;
+        userData.specialization = specialization;
+        userData.licenseNumber = licenseNumber;
+      }
+
+      // Save user data
+      await fetch('/api/auth/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: userCredential.user.uid,
-          email: email,
-          name: name
-        })
+        body: JSON.stringify(userData)
       });
+
       window.location.href = '/dashboard';
     } catch (error) {
       console.error('Registration error:', error);
@@ -114,12 +129,24 @@ function initializeFirebase() {
   };
 
   // Profile update function
-  window.updateProfile = async (name, phone, birthdate) => {
+  window.updateProfile = async (displayName, phone, birthdate, specialization = null, licenseNumber = null) => {
     try {
+      const updateData = {
+        displayName,
+        phone: phone || '',
+        birthdate: birthdate || ''
+      };
+
+      // Add doctor-specific fields if provided
+      if (specialization !== null && licenseNumber !== null) {
+        updateData.specialization = specialization;
+        updateData.licenseNumber = licenseNumber;
+      }
+
       const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, birthdate })
+        body: JSON.stringify(updateData)
       });
 
       if (!response.ok) {
@@ -130,9 +157,19 @@ function initializeFirebase() {
       const result = await response.json();
       if (result.success) {
         // Update the form fields with the new data
-        document.getElementById('name').value = result.profile.name;
+        document.getElementById('name').value = result.profile.displayName;
         document.getElementById('phone').value = result.profile.phone || '';
         document.getElementById('birthdate').value = result.profile.birthdate || '';
+
+        // Update doctor-specific fields if they exist
+        const specializationInput = document.getElementById('specialization');
+        const licenseNumberInput = document.getElementById('license-number');
+        if (specializationInput && result.profile.specialization) {
+          specializationInput.value = result.profile.specialization;
+        }
+        if (licenseNumberInput && result.profile.licenseNumber) {
+          licenseNumberInput.value = result.profile.licenseNumber;
+        }
         
         // Show success message
         const successMessage = document.getElementById('success-message');
@@ -168,10 +205,20 @@ function initializeFirebase() {
       const result = await response.json();
       if (result.success) {
         // Update the form fields with the fetched data
-        document.getElementById('name').value = result.profile.name;
+        document.getElementById('name').value = result.profile.displayName;
         document.getElementById('email').value = result.profile.email;
         document.getElementById('phone').value = result.profile.phone || '';
         document.getElementById('birthdate').value = result.profile.birthdate || '';
+
+        // Update doctor-specific fields if they exist
+        const specializationInput = document.getElementById('specialization');
+        const licenseNumberInput = document.getElementById('license-number');
+        if (specializationInput && result.profile.specialization) {
+          specializationInput.value = result.profile.specialization;
+        }
+        if (licenseNumberInput && result.profile.licenseNumber) {
+          licenseNumberInput.value = result.profile.licenseNumber;
+        }
       }
     } catch (error) {
       console.error('Error fetching profile:', error);

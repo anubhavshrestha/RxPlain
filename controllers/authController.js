@@ -52,15 +52,52 @@ export const logout = (req, res) => {
 // Create user profile in Firestore after registration
 export const createUserProfile = async (req, res) => {
   try {
-    const { uid, email, name } = req.body;
+    const { uid, email, username, displayName, role } = req.body;
     
-    // Save user data to Firestore
-    await db.collection('users').doc(uid).set({
+    // Validate required fields
+    if (!uid || !email || !username || !displayName || !role) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    // Validate role
+    if (!['patient', 'doctor'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+    
+    // Check username availability
+    const usernameSnapshot = await db.collection('users')
+      .where('username', '==', username)
+      .get();
+    
+    if (!usernameSnapshot.empty) {
+      return res.status(400).json({ error: 'Username already taken' });
+    }
+    
+    // Prepare user data
+    const userData = {
       email,
-      name,
+      username,
+      displayName,
+      role,
       createdAt: new Date(),
       documents: []
-    });
+    };
+    
+    // Add role-specific fields
+    if (role === 'doctor') {
+      const { specialization, licenseNumber } = req.body;
+      if (!specialization || !licenseNumber) {
+        return res.status(400).json({ error: 'Missing doctor-specific fields' });
+      }
+      userData.specialization = specialization;
+      userData.licenseNumber = licenseNumber;
+    } else {
+      // Initialize empty linked doctors array for patients
+      userData.linkedDoctors = [];
+    }
+    
+    // Save user data to Firestore
+    await db.collection('users').doc(uid).set(userData);
     
     res.status(201).json({ success: true });
   } catch (error) {

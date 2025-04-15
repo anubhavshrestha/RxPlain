@@ -12,6 +12,7 @@ import { db } from './config/firebase-admin.js';
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import documentRoutes from './routes/documents.js';
+import userRoutes from './routes/users.js';
 import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
 // Initialize env variables
@@ -43,6 +44,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/users', userRoutes);
 
 // Public Routes
 app.get('/', (req, res) => {
@@ -58,11 +60,36 @@ app.get('/register', redirectIfAuthenticated, (req, res) => {
 });
 
 // Protected Routes
-app.get('/dashboard', isAuthenticated, (req, res) => {
-  res.render('dashboard', { 
-    title: 'Dashboard - RxPlain',
-    user: req.user
-  });
+app.get('/dashboard', isAuthenticated, async (req, res) => {
+  try {
+    // Get user data from Firestore
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    
+    if (!userDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Render role-specific dashboard
+    if (userData.role === 'doctor') {
+      res.render('doctor-dashboard', { 
+        title: 'Doctor Dashboard - RxPlain',
+        user: { ...req.user, ...userData }
+      });
+    } else {
+      res.render('dashboard', { 
+        title: 'Document Dashboard - RxPlain',
+        user: { ...req.user, ...userData }
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading dashboard'
+    });
+  }
 });
 
 app.get('/profile', isAuthenticated, async (req, res) => {
@@ -71,36 +98,28 @@ app.get('/profile', isAuthenticated, async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     
     if (!userDoc.exists) {
-      // Create user document if it doesn't exist
-      await db.collection('users').doc(req.user.uid).set({
-        email: req.user.email,
-        name: req.user.name || '',
-        phone: '',
-        birthdate: '',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-      
-      // Get the newly created document
-      const newUserDoc = await db.collection('users').doc(req.user.uid).get();
-      const userData = newUserDoc.data();
-      
-      res.render('profile', { 
-        title: 'My Profile - RxPlain',
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Render role-specific profile
+    if (userData.role === 'doctor') {
+      res.render('doctor-profile', { 
+        title: 'Doctor Profile - RxPlain',
         user: { ...req.user, ...userData }
       });
     } else {
-      const userData = userDoc.data();
-      res.render('profile', { 
-        title: 'My Profile - RxPlain',
+      res.render('patient-profile', { 
+        title: 'Patient Profile - RxPlain',
         user: { ...req.user, ...userData }
       });
     }
   } catch (error) {
     console.error('Error fetching user profile:', error);
-    res.render('profile', { 
-      title: 'My Profile - RxPlain',
-      user: req.user
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading profile'
     });
   }
 });
@@ -118,20 +137,13 @@ app.get('/terms', (req, res) => {
   res.render('terms', { title: 'Terms of Service - RxPlain' });
 });
 
-// Error handling middleware - This should come AFTER all your routes
-app.use((req, res, next) => {
-  const error = new Error('Not Found');
-  error.status = 404;
-  next(error);
-});
-
-app.use((error, req, res, next) => {
-  res.status(error.status || 500);
-  res.render('error', {
-    message: error.message,
-    error: process.env.NODE_ENV === 'development' ? error : {}
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).render('error', { 
+    title: 'Error - RxPlain',
+    message: 'Something went wrong!'
   });
 });
 
-// Export app
 export default app;

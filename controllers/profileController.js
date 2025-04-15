@@ -14,15 +14,25 @@ export const getUserProfile = async (req, res) => {
     
     const userData = userDoc.data();
     
+    // Prepare profile data based on role
+    const profile = {
+      displayName: userData.displayName,
+      email: userData.email,
+      phone: userData.phone || '',
+      birthdate: userData.birthdate || '',
+      role: userData.role,
+      createdAt: userData.createdAt
+    };
+
+    // Add doctor-specific fields if user is a doctor
+    if (userData.role === 'doctor') {
+      profile.specialization = userData.specialization;
+      profile.licenseNumber = userData.licenseNumber;
+    }
+    
     res.status(200).json({
       success: true,
-      profile: {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone || '',
-        birthdate: userData.birthdate || '',
-        createdAt: userData.createdAt
-      }
+      profile
     });
   } catch (error) {
     console.error('Error getting user profile:', error);
@@ -34,48 +44,64 @@ export const getUserProfile = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { name, phone, birthdate } = req.body;
+    const { displayName, phone, birthdate, specialization, licenseNumber } = req.body;
     
-    if (!name) {
+    if (!displayName) {
       return res.status(400).json({ error: 'Name is required' });
     }
     
-    // Check if document exists
+    // Get current user data
     const userDoc = await db.collection('users').doc(uid).get();
     
     if (!userDoc.exists) {
-      // Create new document if it doesn't exist
-      await db.collection('users').doc(uid).set({
-        name,
-        email: req.user.email,
-        phone: phone || '',
-        birthdate: birthdate || '',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      });
-    } else {
-      // Update existing document
-      await db.collection('users').doc(uid).update({
-        name,
-        phone: phone || '',
-        birthdate: birthdate || '',
-        updatedAt: new Date()
-      });
+      return res.status(404).json({ error: 'User not found' });
     }
+
+    const userData = userDoc.data();
+    
+    // Prepare update data
+    const updateData = {
+      displayName,
+      phone: phone || '',
+      birthdate: birthdate || '',
+      updatedAt: new Date()
+    };
+
+    // Add doctor-specific fields if user is a doctor
+    if (userData.role === 'doctor') {
+      if (!specialization || !licenseNumber) {
+        return res.status(400).json({ error: 'Specialization and license number are required for doctors' });
+      }
+      updateData.specialization = specialization;
+      updateData.licenseNumber = licenseNumber;
+    }
+    
+    // Update user document
+    await db.collection('users').doc(uid).update(updateData);
     
     // Get the updated user data
     const updatedDoc = await db.collection('users').doc(uid).get();
-    const userData = updatedDoc.data();
+    const updatedUserData = updatedDoc.data();
+    
+    // Prepare response data
+    const profile = {
+      displayName: updatedUserData.displayName,
+      email: updatedUserData.email,
+      phone: updatedUserData.phone || '',
+      birthdate: updatedUserData.birthdate || '',
+      role: updatedUserData.role,
+      createdAt: updatedUserData.createdAt
+    };
+
+    // Add doctor-specific fields if user is a doctor
+    if (updatedUserData.role === 'doctor') {
+      profile.specialization = updatedUserData.specialization;
+      profile.licenseNumber = updatedUserData.licenseNumber;
+    }
     
     res.status(200).json({ 
       success: true,
-      profile: {
-        name: userData.name,
-        email: userData.email,
-        phone: userData.phone || '',
-        birthdate: userData.birthdate || '',
-        createdAt: userData.createdAt
-      }
+      profile
     });
   } catch (error) {
     console.error('Error updating user profile:', error);

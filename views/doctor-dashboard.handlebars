@@ -1,0 +1,184 @@
+{{!-- Doctor Dashboard --}}
+<div class="container mx-auto px-4 py-8">
+  <div class="flex justify-between items-center mb-8">
+    <h1 class="text-3xl font-bold">Doctor Dashboard</h1>
+    <div class="flex items-center space-x-4">
+      <span class="text-gray-600">Welcome, Dr. {{user.displayName}}</span>
+      <a href="/profile" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Profile</a>
+    </div>
+  </div>
+
+  {{!-- Search Patients Section --}}
+  <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Search Patients</h2>
+    <div class="flex space-x-4">
+      <input type="text" id="patientSearch" placeholder="Search by username or name" 
+             class="flex-1 border rounded px-4 py-2">
+      <button onclick="searchPatients()" 
+              class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded">
+        Search
+      </button>
+    </div>
+    <div id="patientSearchResults" class="mt-4"></div>
+  </div>
+
+  {{!-- Patient Documents Section --}}
+  <div class="bg-white rounded-lg shadow-md p-6">
+    <h2 class="text-xl font-semibold mb-4">Patient Documents</h2>
+    <div id="patientDocuments" class="space-y-4">
+      {{!-- Documents will be loaded here --}}
+    </div>
+  </div>
+</div>
+
+<script>
+// Function to search for patients
+async function searchPatients() {
+  const searchTerm = document.getElementById('patientSearch').value;
+  try {
+    const response = await fetch(`/api/users/patients/search?q=${encodeURIComponent(searchTerm)}`);
+    const data = await response.json();
+    
+    const resultsDiv = document.getElementById('patientSearchResults');
+    resultsDiv.innerHTML = '';
+    
+    if (data.length === 0) {
+      resultsDiv.innerHTML = '<p class="text-gray-500">No patients found</p>';
+      return;
+    }
+    
+    data.forEach(patient => {
+      const patientCard = document.createElement('div');
+      patientCard.className = 'bg-gray-50 p-4 rounded mb-2';
+      patientCard.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-semibold">${patient.displayName}</h3>
+            <p class="text-sm text-gray-600">@${patient.username}</p>
+          </div>
+          <button onclick="viewPatientDocuments('${patient.uid}')" 
+                  class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+            View Documents
+          </button>
+        </div>
+      `;
+      resultsDiv.appendChild(patientCard);
+    });
+  } catch (error) {
+    console.error('Error searching patients:', error);
+    alert('Error searching patients. Please try again.');
+  }
+}
+
+// Function to view patient documents
+async function viewPatientDocuments(patientId) {
+  try {
+    const response = await fetch(`/api/documents/patient/${patientId}`);
+    const documents = await response.json();
+    
+    const documentsDiv = document.getElementById('patientDocuments');
+    documentsDiv.innerHTML = '';
+    
+    if (documents.length === 0) {
+      documentsDiv.innerHTML = '<p class="text-gray-500">No documents available</p>';
+      return;
+    }
+    
+    documents.forEach(doc => {
+      const docCard = document.createElement('div');
+      docCard.className = 'bg-gray-50 p-4 rounded';
+      docCard.innerHTML = `
+        <div class="flex justify-between items-start">
+          <div>
+            <h3 class="font-semibold">${doc.originalName}</h3>
+            <p class="text-sm text-gray-600">Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString()}</p>
+            <p class="text-sm text-gray-600">Type: ${doc.type}</p>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="viewDocument('${doc.id}')" 
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+              View
+            </button>
+            <button onclick="endorseDocument('${doc.id}')" 
+                    class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
+              Endorse
+            </button>
+            <button onclick="flagDocument('${doc.id}')" 
+                    class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
+              Flag
+            </button>
+          </div>
+        </div>
+      `;
+      documentsDiv.appendChild(docCard);
+    });
+  } catch (error) {
+    console.error('Error fetching patient documents:', error);
+    alert('Error loading documents. Please try again.');
+  }
+}
+
+// Function to view a document
+async function viewDocument(docId) {
+  try {
+    const response = await fetch(`/api/documents/${docId}`);
+    const doc = await response.json();
+    window.open(doc.url, '_blank');
+  } catch (error) {
+    console.error('Error viewing document:', error);
+    alert('Error viewing document. Please try again.');
+  }
+}
+
+// Function to endorse a document
+async function endorseDocument(docId) {
+  try {
+    const response = await fetch(`/api/documents/${docId}/endorse`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      alert('Document endorsed successfully');
+      // Refresh the documents list
+      const patientId = document.querySelector('#patientDocuments').dataset.patientId;
+      if (patientId) {
+        viewPatientDocuments(patientId);
+      }
+    } else {
+      throw new Error('Failed to endorse document');
+    }
+  } catch (error) {
+    console.error('Error endorsing document:', error);
+    alert('Error endorsing document. Please try again.');
+  }
+}
+
+// Function to flag a document
+async function flagDocument(docId) {
+  try {
+    const response = await fetch(`/api/documents/${docId}/flag`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      alert('Document flagged successfully');
+      // Refresh the documents list
+      const patientId = document.querySelector('#patientDocuments').dataset.patientId;
+      if (patientId) {
+        viewPatientDocuments(patientId);
+      }
+    } else {
+      throw new Error('Failed to flag document');
+    }
+  } catch (error) {
+    console.error('Error flagging document:', error);
+    alert('Error flagging document. Please try again.');
+  }
+}
+</script> 

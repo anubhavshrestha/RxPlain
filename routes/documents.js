@@ -120,12 +120,20 @@ router.get('/user-documents', isAuthenticated, async (req, res) => {
     for (const docId of documentIds) {
       const docSnapshot = await db.collection('documents').doc(docId).get();
       if (docSnapshot.exists) {
-        documents.push(docSnapshot.data());
+        const doc = docSnapshot.data();
+        // Convert Firestore timestamps to ISO strings
+        if (doc.createdAt) {
+          doc.createdAt = doc.createdAt.toDate().toISOString();
+        }
+        if (doc.updatedAt) {
+          doc.updatedAt = doc.updatedAt.toDate().toISOString();
+        }
+        documents.push(doc);
       }
     }
     
     // Sort documents by creation date (newest first)
-    documents.sort((a, b) => b.createdAt.toDate() - a.createdAt.toDate());
+    documents.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     
     return res.status(200).json({ documents });
   } catch (error) {
