@@ -27,19 +27,57 @@ const progressPercentage = document.getElementById('progress-percentage');
 const documentList = document.getElementById('document-list');
 const emptyState = document.getElementById('empty-state');
 const searchInput = document.getElementById('search-input');
+const navLoadingIndicator = document.querySelector('.nav-loading');
+
+// Hide loading indicator if it exists
+if (navLoadingIndicator) {
+    navLoadingIndicator.style.display = 'none';
+}
 
 // Supported file types and max size (10MB)
 const supportedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
 const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
 // Check if user is authenticated
-auth.onAuthStateChanged(function(user) {
+auth.onAuthStateChanged(async function(user) {
+    // Show loading indicator
+    if (navLoadingIndicator) {
+        navLoadingIndicator.style.display = 'inline-block';
+    }
+
     if (user) {
-        // User is signed in, load their documents
-        loadDocuments();
+        try {
+            // Get the ID token
+            const idToken = await user.getIdToken();
+            
+            // Create a session
+            const response = await fetch('/api/session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ idToken })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create session');
+            }
+
+            // User is signed in and has a valid session, load their documents
+            loadDocuments();
+        } catch (error) {
+            console.error('Session creation failed:', error);
+            // Redirect to login if session creation fails
+            window.location.href = '/login';
+        }
     } else {
         // User is signed out, redirect to login
         window.location.href = '/login';
+    }
+
+    // Hide loading indicator
+    if (navLoadingIndicator) {
+        navLoadingIndicator.style.display = 'none';
     }
 });
 
