@@ -28,6 +28,11 @@ const documentList = document.getElementById('document-list');
 const emptyState = document.getElementById('empty-state');
 const searchInput = document.getElementById('search-input');
 const navLoadingIndicator = document.querySelector('.nav-loading');
+const createReportBtn = document.getElementById('create-report-btn');
+const selectedCountDisplay = document.getElementById('selected-count');
+
+// Keep track of selected documents
+let selectedDocuments = new Set();
 
 // Hide loading indicator if it exists
 if (navLoadingIndicator) {
@@ -580,67 +585,29 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Document ready handler
+// Initialize everything when the DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-    // Setup event listeners and initialize dashboard
+    setupFilterUI();
     setupFileUpload();
     setupSearch();
-    setupCreateReportListeners();
     
-    // Initialize the documents list when auth is ready
-    auth.onAuthStateChanged(async function(user) {
-        if (user) {
-            try {
-                await loadDocuments();
-                restoreDocumentSelections();
-            } catch (error) {
-                console.error('Error initializing dashboard:', error);
-            }
+    // Initialize selectedDocuments Set from checked checkboxes (if page reloads)
+    const checkedBoxes = document.querySelectorAll('.select-doc-checkbox:checked');
+    checkedBoxes.forEach(checkbox => {
+        if (checkbox.checked && checkbox.dataset.id) {
+            selectedDocuments.add(checkbox.dataset.id);
         }
     });
-});
-
-// Setup Create Report button
-function setupCreateReportListeners() {
-    const createReportBtn = document.getElementById('create-report-btn');
     
+    // Initialize button state
+    updateSelectedCount();
+    
+    // Add event listener for the Create Report button
+    const createReportBtn = document.getElementById('create-report-btn');
     if (createReportBtn) {
         createReportBtn.addEventListener('click', createCombinedReport);
     }
-    
-    // Add event delegation for document checkboxes
-    document.addEventListener('change', function(event) {
-        if (event.target && event.target.classList.contains('select-doc-checkbox')) {
-            const documentId = event.target.dataset.id;
-            const isSelected = event.target.checked;
-            
-            toggleDocumentSelection(documentId, isSelected);
-        }
-    });
-}
-
-// Restore document selections from localStorage
-function restoreDocumentSelections() {
-    try {
-        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
-        
-        if (selectedDocs.length > 0) {
-            // Find and check the checkboxes for selected documents
-            const checkboxes = document.querySelectorAll('.select-doc-checkbox');
-            
-            checkboxes.forEach(checkbox => {
-                if (selectedDocs.includes(checkbox.dataset.id)) {
-                    checkbox.checked = true;
-                }
-            });
-            
-            // Update the selection UI
-            updateSelectedCount();
-        }
-    } catch (error) {
-        console.error('Error restoring document selections:', error);
-    }
-}
+});
 
 // Simplify a document with Gemini AI
 async function simplifyDocument(documentId) {
@@ -856,95 +823,90 @@ function openProcessedDocument(doc) {
     });
 }
 
-// Update document selection state
-function updateSelectedCount() {
-    const selectedCount = document.querySelectorAll('.select-doc-checkbox:checked').length;
-    const selectedCountElement = document.getElementById('selected-count');
-    const noSelectionElement = document.getElementById('no-selection');
-    const hasSelectionElement = document.getElementById('has-selection');
-    const createReportButton = document.getElementById('create-report-btn');
-    
-    if (selectedCountElement) {
-        selectedCountElement.textContent = selectedCount;
-    }
-    
-    if (noSelectionElement && hasSelectionElement) {
-        if (selectedCount > 0) {
-            noSelectionElement.classList.add('hidden');
-            hasSelectionElement.classList.remove('hidden');
-            
-            if (createReportButton) {
-                createReportButton.disabled = false;
-                createReportButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-        } else {
-            noSelectionElement.classList.remove('hidden');
-            hasSelectionElement.classList.add('hidden');
-            
-            if (createReportButton) {
-                createReportButton.disabled = true;
-                createReportButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        }
-    }
-}
-
 // Toggle document selection
 async function toggleDocumentSelection(documentId, isSelected) {
+    // Update UI immediately to appear responsive
+    if (isSelected) {
+        selectedDocuments.add(documentId);
+    } else {
+        selectedDocuments.delete(documentId);
+    }
+    
+    // Update UI to show selected document count right away
+    updateSelectedCount();
+    
+    // Then send update to server in the background
     try {
-        // Update the selection state in the UI immediately
-        updateSelectedCount();
-        
-        // You can optionally save the selection state to localStorage for persistence
-        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
-        
-        if (isSelected && !selectedDocs.includes(documentId)) {
-            selectedDocs.push(documentId);
-        } else if (!isSelected && selectedDocs.includes(documentId)) {
-            const index = selectedDocs.indexOf(documentId);
-            if (index > -1) {
-                selectedDocs.splice(index, 1);
+        const response = await fetch(`/api/documents/select/${documentId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
             }
-        }
+        });
         
-        localStorage.setItem('selectedDocs', JSON.stringify(selectedDocs));
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Error updating document selection:', errorData.error);
+            // Don't show visible error to user, just log it
+        }
     } catch (error) {
-        console.error('Error updating document selection:', error);
+        console.error('Error toggling document selection:', error);
+        // Don't revert the UI or show error message to maintain responsiveness
     }
 }
 
-// Create combined report
-async function createCombinedReport() {
-    // Get selected document IDs
-    const selectedCheckboxes = document.querySelectorAll('.select-doc-checkbox:checked');
-    const documentIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
+// Update selected document count
+function updateSelectedCount() {
+    const selectedCount = selectedDocuments.size;
     
-    if (documentIds.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'No Documents Selected',
-            text: 'Please select at least one document to create a report.',
-            confirmButtonColor: '#16a34a'
-        });
-        return;
+    // Update selected count display if it exists
+    const selectedCountElem = document.getElementById('selected-count');
+    if (selectedCountElem) {
+        selectedCountElem.textContent = `${selectedCount} selected`;
     }
     
-    // Show loading indication
+    // Update Create Report button state
     const createReportBtn = document.getElementById('create-report-btn');
-    const originalBtnText = createReportBtn.innerHTML;
-    createReportBtn.disabled = true;
-    createReportBtn.classList.add('opacity-75');
-    createReportBtn.innerHTML = `
-        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Creating Report...
-    `;
-    
+    if (createReportBtn) {
+        if (selectedCount > 0) {
+            createReportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            createReportBtn.classList.add('bg-health-600', 'hover:bg-health-700');
+            createReportBtn.classList.remove('bg-health-300', 'hover:bg-health-300');
+            createReportBtn.removeAttribute('disabled');
+        } else {
+            createReportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            createReportBtn.classList.remove('bg-health-600', 'hover:bg-health-700');
+            createReportBtn.classList.add('bg-health-300', 'hover:bg-health-300');
+            createReportBtn.setAttribute('disabled', 'true');
+        }
+    }
+}
+
+// Create a combined report from selected documents
+async function createCombinedReport() {
     try {
-        // Send request to create report
-        const response = await fetch('/api/documents/create-report', {
+        const selectedCheckboxes = document.querySelectorAll('.select-doc-checkbox:checked');
+        
+        if (selectedCheckboxes.length === 0) {
+            showError('Please select at least one document to create a report.');
+            return;
+        }
+        
+        // Get selected document IDs
+        const documentIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
+        
+        // Show loading indicator
+        Swal.fire({
+            title: 'Creating Report',
+            html: 'Generating combined report from selected documents...<br>This may take a minute or two.',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Create the combined report
+        const response = await fetch('/api/documents/combined-report', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -953,48 +915,78 @@ async function createCombinedReport() {
         });
         
         if (!response.ok) {
-            throw new Error('Failed to create report');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create combined report');
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
-        if (data.success && data.report) {
-            // Success - clear selection state
+        // Close the loading indicator
+        Swal.close();
+        
+        if (result.success) {
+            // If there's a redirect URL, use it for direct navigation
+            if (result.redirectUrl) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created!',
+                    text: 'Your combined report has been created and is ready to view.',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    // Navigate to the report page
+                    window.location.href = result.redirectUrl;
+                });
+            } else if (result.report && result.report.id) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created',
+                    text: 'Your combined report has been created successfully.',
+                    showCancelButton: true,
+                    confirmButtonText: 'View Report',
+                    cancelButtonText: 'Close',
+                    confirmButtonColor: '#15803d',
+                }).then((result) => {
+                    if (result.isConfirmed && result.report && result.report.id) {
+                        // Redirect to the report page
+                        window.location.href = `/reports/${result.report.id}`;
+                    }
+                });
+            } else {
+                // Fallback if no report ID or redirect URL provided
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created',
+                    text: 'Your combined report has been created. Visit the Reports page to view it.',
+                    confirmButtonText: 'Go to Reports',
+                    confirmButtonColor: '#15803d',
+                }).then(() => {
+                    window.location.href = '/reports';
+                });
+            }
+            
+            // Uncheck all checkboxes
             selectedCheckboxes.forEach(checkbox => {
                 checkbox.checked = false;
             });
             
-            localStorage.removeItem('selectedDocs');
-            updateSelectedCount();
+            // Clear selected documents
+            selectedDocuments.clear();
             
-            // Show success message and redirect to the report
-            Swal.fire({
-                icon: 'success',
-                title: 'Report Created',
-                text: 'Your report has been created successfully.',
-                confirmButtonColor: '#16a34a'
-            }).then(() => {
-                // Navigate to the report after a small delay to avoid UI jank
-                setTimeout(() => {
-                    window.location.href = `/reports/${data.report.id}`;
-                }, 100);
-            });
+            // Update selected count
+            updateSelectedCount();
         } else {
-            throw new Error('Invalid response data');
+            throw new Error(result.error || 'Failed to create combined report');
         }
     } catch (error) {
-        console.error('Error creating report:', error);
+        console.error('Error creating combined report:', error);
+        
         Swal.fire({
             icon: 'error',
-            title: 'Error',
-            text: 'Failed to create report. Please try again later.',
-            confirmButtonColor: '#16a34a'
+            title: 'Report Creation Failed',
+            text: error.message || 'Failed to create combined report. Please try again.',
+            confirmButtonColor: '#15803d'
         });
-    } finally {
-        // Reset button state
-        createReportBtn.disabled = false;
-        createReportBtn.classList.remove('opacity-75');
-        createReportBtn.innerHTML = originalBtnText;
     }
 }
 
@@ -1110,14 +1102,6 @@ function setupFilterUI() {
                     <option value="unprocessed">Unprocessed</option>
                     <option value="processing">Processing</option>
                 </select>
-            </div>
-            <div class="relative">
-                <input type="text" id="search-input" placeholder="Search documents..." class="pl-10 rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
             </div>
         </div>
     `;

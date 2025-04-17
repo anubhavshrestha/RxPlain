@@ -39,15 +39,30 @@ app.engine('handlebars', engine({
   layoutsDir: path.join(__dirname, 'views/layouts'),
   helpers: {
     formatDate: function(date) {
-      if (!date) return '';
-      const d = new Date(date);
-      return d.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      if (!date) return 'No date available';
+      
+      // Handle the case when date is a Firestore Timestamp or the ISO string from it
+      let d;
+      try {
+        d = new Date(date);
+        
+        // Check if date is valid
+        if (isNaN(d.getTime())) {
+          console.warn('Invalid date received:', date);
+          return 'Date unavailable';
+        }
+        
+        return d.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      } catch (error) {
+        console.error('Error formatting date:', error);
+        return 'Date unavailable';
+      }
     },
     markdownToHtml: function(markdown) {
       if (!markdown) return '';
@@ -88,7 +103,36 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     
     if (!userDoc.exists) {
-      return res.redirect('/register');
+      console.log(`User document doesn't exist for ${req.user.uid}. Creating default user document.`);
+      
+      // Create a default user document for authenticated users without one
+      const defaultUserData = {
+        email: req.user.email || 'No email provided',
+        displayName: req.user.name || req.user.email || 'New User',
+        username: req.user.email ? req.user.email.split('@')[0] : `user_${Date.now()}`,
+        role: 'patient', // Default role
+        createdAt: new Date(),
+        documents: [],
+        reports: [],
+        medications: []
+      };
+      
+      try {
+        // Save default user data
+        await db.collection('users').doc(req.user.uid).set(defaultUserData);
+        
+        // Render patient dashboard with default user data
+        return res.render('dashboard', { 
+          title: 'Document Dashboard - RxPlain',
+          user: { ...req.user, ...defaultUserData }
+        });
+      } catch (createError) {
+        console.error('Error creating default user document:', createError);
+        return res.status(500).render('error', {
+          title: 'Error - RxPlain',
+          message: 'Error creating your user profile. Please try logging out and in again.'
+        });
+      }
     }
     
     const userData = userDoc.data();
@@ -109,18 +153,59 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     console.error('Error fetching user data:', error);
     res.status(500).render('error', { 
       title: 'Error - RxPlain',
-      message: 'Error loading dashboard'
+      message: 'Error loading dashboard. Please try logging in again.'
     });
   }
 });
 
-// Redirect old paths to dashboard with appropriate tab
-app.get('/medications', isAuthenticated, (req, res) => {
-  res.redirect('/dashboard#medications');
+app.get('/medications', isAuthenticated, async (req, res) => {
+  try {
+    // Get user data from Firestore
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    
+    if (!userDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Render the medications page
+    res.render('medications', { 
+      title: 'My Medications - RxPlain',
+      user: { ...req.user, ...userData }
+    });
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading medications'
+    });
+  }
 });
 
-app.get('/reports', isAuthenticated, (req, res) => {
-  res.redirect('/dashboard#reports');
+app.get('/reports', isAuthenticated, async (req, res) => {
+  try {
+    // Get user data from Firestore
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    
+    if (!userDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Render the reports page
+    res.render('reports', { 
+      title: 'Medical Reports - RxPlain',
+      user: { ...req.user, ...userData }
+    });
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading reports'
+    });
+  }
 });
 
 app.get('/reports/:reportId', isAuthenticated, async (req, res) => {
@@ -161,8 +246,7 @@ app.get('/reports/:reportId', isAuthenticated, async (req, res) => {
     res.render('report-view', { 
       title: `${reportData.title} - RxPlain`,
       user: { ...req.user, ...userData },
-      report: reportData,
-      dashboardUrl: '/dashboard#reports' // Add this to link back to the reports tab
+      report: reportData
     });
   } catch (error) {
     console.error('Error fetching report data:', error);

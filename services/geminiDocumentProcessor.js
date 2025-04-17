@@ -205,32 +205,26 @@ export class GeminiDocumentProcessor {
                 
                 This document has been classified as: ${docType}
                 
-                Format your response in clean, well-structured markdown with these patient-friendly sections:
+                Format your response in markdown with these patient-friendly sections:
                 
                 # What This Means For You
-                [Provide a clear, simple explanation of what this document means for the patient's health in 2-3 sentences. Focus on the practical implications.]
+                [Explain the main takeaway in 1-2 simple sentences. What does the patient really need to know?]
                 
                 # Key Actions
-                [List specific, concrete actions the patient should take as bullet points. Be direct and practical. Include medication instructions, lifestyle changes, follow-up appointments, etc.]
+                [List specific, concrete actions the patient should take. Be direct and practical. Include medication instructions, lifestyle changes, follow-up appointments, etc.]
                 
                 # Important Information
-                [Explain ONLY the most crucial details a patient needs to understand in short paragraphs with appropriate spacing. Focus on what affects them directly. Avoid medical jargon completely, or if necessary, define it in everyday language.]
+                [Explain ONLY the most crucial details a patient needs to understand. Focus on what affects them directly. Avoid medical jargon completely, or if necessary, define it in everyday language.]
                 
                 # Health Terms Simplified
-                [Translate ONLY the essential medical terms that appear in the document into simple, everyday language a 12-year-old could understand. Format as a bulleted list with the term in bold followed by the simple explanation.]
-                
-                # Recommendations
-                [Provide 3-5 specific, actionable recommendations related to this medical document. These should be practical suggestions that help the patient understand what to do next.]
+                [Translate ONLY the essential medical terms that appear in the document into simple, everyday language a 12-year-old could understand]
                 
                 Remember:
                 - Write at a 6th-grade reading level maximum
                 - Use short sentences and simple words
-                - Add proper spacing between paragraphs
-                - Include subheadings where appropriate
                 - Explain WHY things matter to the patient
                 - Focus on practical information, not technical details
                 - Be reassuring but honest
-                - Use bulleted lists for better readability
                 
                 The document content is:
                 ${text}
@@ -239,38 +233,23 @@ export class GeminiDocumentProcessor {
             const docResult = await this.model.generateContent(docPrompt);
             const docMarkdown = docResult.response.text();
             
-            // Prompt for medication extraction - improved for better structured data
+            // Prompt for medication extraction
             const medPrompt = `
-                Extract ALL medications mentioned in this medical document and format them as a structured list.
+                Extract a comprehensive list of ALL medications mentioned in the following medical document.
+                For each medication, provide:
+                1. Name (both brand and generic if available)
+                2. Dosage
+                3. Frequency
+                4. Purpose (in patient-friendly terms - what symptom or condition it treats)
+                5. Special instructions in simple language
+                6. Important side effects to watch for (only the most common or serious ones)
                 
-                For each medication, provide these fields:
-                1. name: The full medication name (required - both brand and generic if available)
-                2. dosage: The amount/strength/dose (if mentioned)
-                3. frequency: How often to take it (if mentioned)
-                4. purpose: What condition or symptom it treats, in patient-friendly terms (if mentioned)
-                5. instructions: Special directions in simple language (if mentioned)
-                6. warnings: Important side effects to watch for - only common or serious ones (if mentioned)
+                Format as a JSON array of medication objects with these properties.
+                If no medications are mentioned, return an empty array.
                 
-                Format your response as a JSON array of medication objects with these exact property names. Example:
-                [
-                  {
-                    "name": "Lisinopril",
-                    "dosage": "10mg",
-                    "frequency": "Once daily",
-                    "purpose": "To lower blood pressure",
-                    "instructions": "Take in the morning with or without food",
-                    "warnings": "May cause dizziness, especially when standing up quickly"
-                  }
-                ]
+                Focus on making the information practical and understandable to someone with no medical background.
                 
-                Important:
-                - Every medication MUST have a name field
-                - Only include medications that are clearly prescribed or recommended
-                - Return an empty array [] if no medications are found
-                - Ensure the response is valid JSON that can be parsed
-                - Do not include any text before or after the JSON array
-                
-                The medical document content is:
+                The document content is:
                 ${text}
             `;
             
@@ -284,19 +263,6 @@ export class GeminiDocumentProcessor {
                 const jsonMatch = medText.match(/\[[\s\S]*\]/);
                 if (jsonMatch) {
                     medications = JSON.parse(jsonMatch[0]);
-                    
-                    // Filter out any medications without a name
-                    medications = medications.filter(med => med.name && med.name.trim() !== '');
-                    
-                    // Ensure all medications have the required fields
-                    medications = medications.map(med => ({
-                        name: med.name || 'Unknown Medication',
-                        dosage: med.dosage || '',
-                        frequency: med.frequency || '',
-                        purpose: med.purpose || '',
-                        instructions: med.instructions || '',
-                        warnings: med.warnings || ''
-                    }));
                 } else {
                     console.warn('No JSON array found in medication response');
                     medications = [];
@@ -307,8 +273,7 @@ export class GeminiDocumentProcessor {
                     medications = [];
                 }
             } catch (parseError) {
-                console.error('Failed to parse medications JSON:', parseError);
-                console.error('Raw medication text:', medResult.response.text());
+                console.warn('Failed to parse medications JSON:', parseError);
                 medications = [];
             }
             

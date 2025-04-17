@@ -621,8 +621,8 @@ router.get('/medications', isAuthenticated, async (req, res) => {
   }
 });
 
-// Create a report from multiple documents
-router.post('/create-report', isAuthenticated, async (req, res) => {
+// Create a combined report from multiple documents
+router.post('/combined-report', isAuthenticated, async (req, res) => {
   try {
     const userId = req.user.uid;
     const { documentIds } = req.body;
@@ -630,26 +630,14 @@ router.post('/create-report', isAuthenticated, async (req, res) => {
     if (!documentIds || !Array.isArray(documentIds) || documentIds.length === 0) {
       return res.status(400).json({ 
         success: false, 
-        error: 'No documents selected for the report' 
+        error: 'No documents selected for the combined report' 
       });
     }
     
-    console.log(`Creating report for user ${userId} with ${documentIds.length} documents`);
-    
-    // Fetch all documents in one batch query
-    const documentsRef = db.collection('documents');
-    const documentSnapshots = await Promise.all(
-      documentIds.map(docId => documentsRef.doc(docId).get())
-    );
-    
-    // Process document data
+    // Ensure all documents belong to the user and are processed
     const documents = [];
-    const documentNames = [];
-    const unprocessedDocs = [];
-    
-    for (let i = 0; i < documentSnapshots.length; i++) {
-      const docSnapshot = documentSnapshots[i];
-      const documentId = documentIds[i];
+    for (const documentId of documentIds) {
+      const docSnapshot = await db.collection('documents').doc(documentId).get();
       
       if (!docSnapshot.exists) {
         return res.status(404).json({ 
@@ -664,102 +652,128 @@ router.post('/create-report', isAuthenticated, async (req, res) => {
       if (docData.userId !== userId) {
         return res.status(403).json({ 
           success: false, 
-          error: `Unauthorized access to document ${documentId}` 
+          error: 'Unauthorized access to one or more documents' 
         });
       }
       
-      // Check if document has been processed
+      // Check if document is processed
       if (!docData.isProcessed || !docData.processedContent) {
-        unprocessedDocs.push({
-          id: documentId,
-          name: docData.fileName
+        return res.status(400).json({ 
+          success: false, 
+          error: `Document ${documentId} is not yet processed` 
         });
       }
       
       documents.push(docData);
-      documentNames.push(docData.fileName);
     }
     
-    // If any documents are unprocessed, process them first
-    if (unprocessedDocs.length > 0) {
-      const unprocessedNames = unprocessedDocs.map(doc => doc.name).join(', ');
-      console.log(`Found ${unprocessedDocs.length} unprocessed documents: ${unprocessedNames}`);
+    // Extract document info and content for the combined report
+    const documentInfos = documents.map(doc => ({
+      id: doc.id,
+      fileName: doc.fileName,
+      documentType: doc.documentType || 'MISCELLANEOUS',
+      processedContent: doc.processedContent,
+      medications: doc.medications || []
+    }));
+    
+    // Create the combined report with Gemini - updated for better patient understanding
+    const reportPrompt = `
+      Create a combined medical report summary from the following ${documentInfos.length} medical documents.
+      Your goal is to transform complex medical information into clear, actionable insights that anyone can understand.
       
-      return res.status(400).json({
-        success: false,
-        error: 'Some documents have not been processed yet',
-        unprocessedDocuments: unprocessedDocs
-      });
-    }
+      Structure the report with these patient-friendly sections:
+      
+      # What This Means For You
+      [Explain the main takeaway in 1-2 simple sentences. What does the patient really need to know?]
+      
+      # Key Actions
+      [List specific, concrete actions the patient should take. Be direct and practical. Include medication instructions, lifestyle changes, follow-up appointments, etc.]
+      
+      # Important Information
+      [Explain ONLY the most crucial details a patient needs to understand. Focus on what affects them directly. Avoid medical jargon completely, or if necessary, define it in everyday language.]
+      
+      # Health Terms Simplified
+      [Translate ONLY the essential medical terms that appear in the document into simple, everyday language a 12-year-old could understand]
+      
+      Remember:
+      - Write at a 6th-grade reading level maximum
+      - Use short sentences and simple words  
+      - Focus on practical information, not technical details
+      - Be reassuring but honest
+      
+      Here are the documents:
+      
+      ${documentInfos.map((doc, index) => `
+        DOCUMENT ${index + 1}: ${doc.fileName} (Type: ${doc.documentType})
+        ${doc.processedContent}
+      `).join('\n\n')}
+    `;
     
-    // Extract all unique medications from the documents
-    const medicationMap = new Map();
-    for (const doc of documents) {
+    console.log('Generating combined report for documents:', documentIds);
+    
+    const result = await geminiProcessor.model.generateContent(reportPrompt);
+    const combinedReport = result.response.text();
+    
+    // Generate a list of all unique medications
+    const allMedications = [];
+    const medicationNames = new Set();
+    
+    documents.forEach(doc => {
       if (doc.medications && Array.isArray(doc.medications)) {
-        for (const med of doc.medications) {
-          // Use medication name as key to avoid duplicates
-          if (med.name) {
-            medicationMap.set(med.name, med);
+        doc.medications.forEach(med => {
+          if (med.name && !medicationNames.has(med.name.toLowerCase())) {
+            medicationNames.add(med.name.toLowerCase());
+            allMedications.push(med);
           }
-        }
+        });
       }
-    }
-    const medications = Array.from(medicationMap.values());
-    
-    // Create combined content
-    let combinedContent = '';
-    for (const doc of documents) {
-      if (doc.processedContent) {
-        // Add document name as header
-        combinedContent += `## From: ${doc.fileName}\n\n`;
-        combinedContent += doc.processedContent;
-        combinedContent += '\n\n---\n\n'; // Add separator between documents
-      }
-    }
-    
-    // Generate a title based on document names
-    let title = 'Medical Report';
-    if (documents.length === 1) {
-      title = `Report: ${documents[0].fileName}`;
-    } else if (documents.length <= 3) {
-      title = `Combined Report: ${documents.map(d => d.fileName).join(', ')}`;
-    } else {
-      title = `Combined Report (${documents.length} documents)`;
-    }
-    
-    // Create the report document
-    const reportId = uuidv4();
-    await db.collection('reports').doc(reportId).set({
-      id: reportId,
-      userId: userId,
-      title: title,
-      content: combinedContent,
-      sourceDocuments: documentIds,
-      documentNames: documentNames,
-      medications: medications,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
     });
     
-    // Get the created report
-    const reportSnapshot = await db.collection('reports').doc(reportId).get();
-    const reportData = reportSnapshot.data();
+    // Format the date for title
+    const now = new Date();
+    const formattedDate = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
     
-    // Convert timestamps to ISO strings
-    if (reportData.createdAt) {
-      reportData.createdAt = reportData.createdAt.toDate().toISOString();
-    }
+    // Create a combined report document
+    const reportId = uuidv4();
+    const reportData = {
+      id: reportId,
+      userId: userId,
+      title: `Combined Medical Report - ${formattedDate}`,
+      content: combinedReport,
+      sourceDocuments: documentIds,
+      documentNames: documents.map(doc => doc.fileName),
+      medications: allMedications,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
     
-    console.log(`Created report ${reportId} with ${documentIds.length} documents and ${medications.length} medications`);
+    // Save the report to Firestore
+    await db.collection('reports').doc(reportId).set(reportData);
+    
+    // Add report reference to user document
+    await db.collection('users').doc(userId).update({
+      reports: admin.firestore.FieldValue.arrayUnion(reportId)
+    });
+    
+    // Create a response object with current date for immediate display
+    const responseData = {
+      ...reportData,
+      createdAt: now.toISOString() // Use the actual JavaScript Date object
+    };
     
     return res.status(200).json({
       success: true,
-      report: reportData
+      report: responseData,
+      redirectUrl: `/reports/${reportId}`
     });
   } catch (error) {
-    console.error('Error creating report:', error);
+    console.error('Error creating combined report:', error);
     return res.status(500).json({ 
       success: false, 
-      error: error.message || 'Failed to create report' 
+      error: error.message || 'Failed to create combined report' 
     });
   }
 });
