@@ -1,14 +1,5 @@
 // Import Firebase from CDN (you'll need to add the script in main.handlebars)
 // Initialize Firebase client-side
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js';
-import { 
-  getAuth, 
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut,
-  onAuthStateChanged 
-} from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
-
 // Your web app's Firebase configuration from the server
 let firebaseConfig;
 
@@ -21,8 +12,8 @@ async function fetchFirebaseConfig() {
 
 // Initialize Firebase with the config
 function initializeFirebase() {
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
 
   // Show loading state
   const authLoading = document.getElementById('auth-loading');
@@ -38,7 +29,7 @@ function initializeFirebase() {
   if (loggedOutNav) loggedOutNav.classList.add('hidden');
 
   // Check authentication state
-  onAuthStateChanged(auth, (user) => {
+  auth.onAuthStateChanged((user) => {
     // Hide loading state
     if (authLoading) {
       authLoading.classList.add('hidden');
@@ -60,7 +51,7 @@ function initializeFirebase() {
   // Login function
   window.login = async (email, password) => {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await auth.signInWithEmailAndPassword(email, password);
       // Get the ID token and create session
       const idToken = await userCredential.user.getIdToken();
       await fetch('/api/session', {
@@ -78,7 +69,7 @@ function initializeFirebase() {
   // Register function
   window.register = async (email, password, name, role) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await auth.createUserWithEmailAndPassword(email, password);
       // Get the ID token and create session
       const idToken = await userCredential.user.getIdToken();
       await fetch('/api/session', {
@@ -121,7 +112,7 @@ function initializeFirebase() {
   // Logout function
   window.logout = async () => {
     try {
-      await signOut(auth);
+      await auth.signOut();
       window.location.href = '/';
     } catch (error) {
       console.error('Logout error:', error);

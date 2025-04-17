@@ -321,6 +321,111 @@ router.post('/process-gemini', isAuthenticated, upload.single('file'), async (re
     }
 });
 
+// Test endpoint to verify API is working
+router.get('/test', (req, res) => {
+  console.log('Test API endpoint hit');
+  return res.status(200).json({ 
+    success: true, 
+    message: 'API is working properly' 
+  });
+});
+
+// Get user's reports
+router.get('/reports', isAuthenticated, async (req, res) => {
+  console.log('API route /reports hit, user ID:', req.user.uid);
+  try {
+    const userId = req.user.uid;
+    
+    // Get user's report IDs
+    console.log('Fetching user doc for reports');
+    const userDoc = await db.collection('users').doc(userId).get();
+    console.log('User doc exists:', userDoc.exists);
+    const userData = userDoc.data();
+    console.log('User data:', userData);
+    
+    const reportIds = userData.reports || [];
+    console.log('Report IDs found:', reportIds.length, reportIds);
+    
+    if (reportIds.length === 0) {
+      console.log('No reports found, returning empty array');
+      return res.status(200).json({ 
+        success: true,
+        reports: [] 
+      });
+    }
+    
+    // Get report details
+    console.log('Fetching report details');
+    const reports = [];
+    for (const reportId of reportIds) {
+      console.log('Fetching report:', reportId);
+      const reportSnapshot = await db.collection('reports').doc(reportId).get();
+      console.log('Report exists:', reportSnapshot.exists);
+      if (reportSnapshot.exists) {
+        const report = reportSnapshot.data();
+        
+        // Convert Firestore timestamps to ISO strings
+        if (report.createdAt) {
+          report.createdAt = report.createdAt.toDate().toISOString();
+        }
+        
+        reports.push(report);
+      }
+    }
+    
+    // Sort reports by creation date (newest first)
+    reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    console.log('Returning reports:', reports.length);
+    
+    return res.status(200).json({
+      success: true,
+      reports: reports
+    });
+  } catch (error) {
+    console.error('Error fetching user reports:', error);
+    console.error('Error stack:', error.stack);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error: ' + error.message 
+    });
+  }
+});
+
+// Get a specific report
+router.get('/reports/:reportId', isAuthenticated, async (req, res) => {
+  try {
+    const reportId = req.params.reportId;
+    const userId = req.user.uid;
+    
+    // Get report
+    const reportSnapshot = await db.collection('reports').doc(reportId).get();
+    
+    if (!reportSnapshot.exists) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+    
+    const reportData = reportSnapshot.data();
+    
+    // Check if the report belongs to the user
+    if (reportData.userId !== userId) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    // Convert Firestore timestamps to ISO strings
+    if (reportData.createdAt) {
+      reportData.createdAt = reportData.createdAt.toDate().toISOString();
+    }
+    
+    return res.status(200).json({
+      success: true,
+      report: reportData
+    });
+  } catch (error) {
+    console.error('Error fetching report:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // Get document by ID with processed content
 router.get('/:documentId', isAuthenticated, async (req, res) => {
   try {
@@ -775,90 +880,6 @@ router.post('/combined-report', isAuthenticated, async (req, res) => {
       success: false, 
       error: error.message || 'Failed to create combined report' 
     });
-  }
-});
-
-// Get user's reports
-router.get('/reports', isAuthenticated, async (req, res) => {
-  try {
-    const userId = req.user.uid;
-    
-    // Get user's report IDs
-    const userDoc = await db.collection('users').doc(userId).get();
-    const userData = userDoc.data();
-    const reportIds = userData.reports || [];
-    
-    if (reportIds.length === 0) {
-      return res.status(200).json({ 
-        success: true,
-        reports: [] 
-      });
-    }
-    
-    // Get report details
-    const reports = [];
-    for (const reportId of reportIds) {
-      const reportSnapshot = await db.collection('reports').doc(reportId).get();
-      if (reportSnapshot.exists) {
-        const report = reportSnapshot.data();
-        
-        // Convert Firestore timestamps to ISO strings
-        if (report.createdAt) {
-          report.createdAt = report.createdAt.toDate().toISOString();
-        }
-        
-        reports.push(report);
-      }
-    }
-    
-    // Sort reports by creation date (newest first)
-    reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    
-    return res.status(200).json({
-      success: true,
-      reports: reports
-    });
-  } catch (error) {
-    console.error('Error fetching user reports:', error);
-    return res.status(500).json({ 
-      success: false, 
-      error: 'Server error' 
-    });
-  }
-});
-
-// Get a specific report
-router.get('/reports/:reportId', isAuthenticated, async (req, res) => {
-  try {
-    const reportId = req.params.reportId;
-    const userId = req.user.uid;
-    
-    // Get report
-    const reportSnapshot = await db.collection('reports').doc(reportId).get();
-    
-    if (!reportSnapshot.exists) {
-      return res.status(404).json({ error: 'Report not found' });
-    }
-    
-    const reportData = reportSnapshot.data();
-    
-    // Check if the report belongs to the user
-    if (reportData.userId !== userId) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-    
-    // Convert Firestore timestamps to ISO strings
-    if (reportData.createdAt) {
-      reportData.createdAt = reportData.createdAt.toDate().toISOString();
-    }
-    
-    return res.status(200).json({
-      success: true,
-      report: reportData
-    });
-  } catch (error) {
-    console.error('Error fetching report:', error);
-    return res.status(500).json({ error: 'Server error' });
   }
 });
 

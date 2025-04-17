@@ -2,24 +2,31 @@ import { auth, db } from '../config/firebase-admin.js';
 
 // Middleware to check if user is authenticated
 export const isAuthenticated = async (req, res, next) => {
+  console.log('Authentication middleware triggered for path:', req.path);
   try {
     const sessionCookie = req.cookies.session || '';
     if (!sessionCookie) {
+      console.log('No session cookie found, redirecting to login');
       return res.redirect('/login');
     }
     
+    console.log('Session cookie found, verifying...');
     // Verify the session cookie
     const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    console.log('Session verified for user:', decodedClaims.uid);
     
     // Check if user has a profile in Firestore
+    console.log('Checking for user profile in Firestore');
     const userDoc = await db.collection('users').doc(decodedClaims.uid).get();
     
     if (!userDoc.exists) {
+      console.log('User authenticated but no profile exists, redirecting to register');
       // User is authenticated but doesn't have a profile, redirect to registration
       res.clearCookie('session');
       return res.redirect('/register');
     }
     
+    console.log('User profile found, proceeding');
     // Add both auth claims and profile data to req.user
     req.user = {
       ...decodedClaims,
@@ -29,6 +36,7 @@ export const isAuthenticated = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Auth middleware error:', error);
+    console.error('Error stack:', error.stack);
     // Session cookie is invalid or expired
     res.clearCookie('session');
     return res.redirect('/login');
