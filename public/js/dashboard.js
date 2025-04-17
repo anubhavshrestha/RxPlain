@@ -17,8 +17,16 @@ const navLoadingIndicator = document.querySelector('.nav-loading');
 const createReportBtn = document.getElementById('create-report-btn');
 const selectedCountDisplay = document.getElementById('selected-count');
 
-// Keep track of selected documents
+// --- Caching Constants --- 
+const DOCS_CACHE_KEY = 'rxplain_docs_cache';
+const DOCS_CACHE_EXPIRY_KEY = 'rxplain_docs_cache_expiry';
+const DOCS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Keep track of selected documents (UI state only)
 let selectedDocuments = new Set();
+
+// Keep track of currently displayed documents (for comparison)
+let currentlyDisplayedDocs = [];
 
 // Hide loading indicator if it exists
 if (navLoadingIndicator) {
@@ -72,59 +80,179 @@ function initializeDashboardUI() {
     });
 } */
 
-// Load user documents from server
-async function loadDocuments() {
-    console.log('[Dashboard.js] Entering loadDocuments...');
-    try {
-        // Show loading state - **REMOVED the disruptive innerHTML clearing**
-        // documentList.innerHTML = '<div class="text-center py-4"><p class="text-gray-500">Loading documents...</p></div>';
-        // Instead, maybe show a subtle indicator elsewhere, or just let it refresh
-        console.log('[Dashboard.js] Fetching user documents from /api/documents/user-documents');
-        
-        // Get user's documents from the server
-        const response = await fetch('/api/documents/user-documents');
-        console.log(`[Dashboard.js] API response status: ${response.status}`);
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('[Dashboard.js] Failed to fetch documents. Status:', response.status, 'Response:', errorText);
-            throw new Error('Failed to fetch documents');
-        }
-        
-        const data = await response.json();
-        console.log('[Dashboard.js] Received document data:', data);
-        
-        if (!data || !Array.isArray(data.documents)) {
-             console.error('[Dashboard.js] Invalid data structure received:', data);
-             throw new Error('Invalid document data structure');
-        }
+// --- NEW Caching and Fetching Logic ---
 
-        // NOW clear the list before re-rendering
-        console.log('[Dashboard.js] Clearing current document list before rendering.');
-        documentList.innerHTML = ''; 
+// Function to load documents from cache IF available and valid
+function loadDocumentsFromCache() {
+    console.log('[Dashboard.js] Entering loadDocumentsFromCache...');
+    const cachedData = localStorage.getItem(DOCS_CACHE_KEY);
+    const cacheExpiry = localStorage.getItem(DOCS_CACHE_EXPIRY_KEY);
+    const now = new Date().getTime();
+    console.log(`[Dashboard.js] Docs Cache check: now=${now}, expiry=${cacheExpiry}`);
+
+    if (cachedData && cacheExpiry && now < parseInt(cacheExpiry)) {
+        console.log('[Dashboard.js] Docs Cache HIT and VALID. Attempting to parse.');
+        try {
+            const parsedData = JSON.parse(cachedData);
+            if (parsedData && Array.isArray(parsedData.documents)) {
+                console.log('[Dashboard.js] Cached docs data structure valid. Using cache.');
+                currentlyDisplayedDocs = parsedData.documents; 
+                renderDocumentList(currentlyDisplayedDocs); // Render immediately
+                // Ensure loading/empty states are correctly hidden/shown
+                loadingPlaceholder?.classList.add('hidden'); // Use optional chaining
+                if (currentlyDisplayedDocs.length > 0) {
+                    documentList.classList.remove('hidden');
+                    emptyState.classList.add('hidden');
+                } else {
+                     documentList.classList.add('hidden');
+                     showEmptyState(); // Use existing function for consistency
+                }
+                console.log('[Dashboard.js] Exiting loadDocumentsFromCache (used cache).');
+                return true; // Indicate cache was used
+            } else {
+                console.warn('[Dashboard.js] Cached docs data structure invalid. Clearing cache.', parsedData);
+                clearDocsCache(false);
+            }
+        } catch (e) {
+            console.error('[Dashboard.js] Error parsing cached docs data. Clearing cache.', e);
+            clearDocsCache(false);
+        }
+    } else if (cachedData) {
+         console.log('[Dashboard.js] Docs Cache HIT but EXPIRED.');
+    } else {
+         console.log('[Dashboard.js] Docs Cache MISS.');
+    }
+    console.log('[Dashboard.js] Exiting loadDocumentsFromCache (did NOT use cache).');
+    return false;
+}
+
+// Function to fetch documents from the server
+async function fetchDocumentsFromServer() {
+    console.log('[Dashboard.js] Entering fetchDocumentsFromServer...');
+    const fetchUrl = '/api/documents/user-documents';
+    try {
+        const response = await fetch(fetchUrl);
+        console.log(`[Dashboard.js] Docs API response status: ${response.status} ${response.statusText}`);
+        const rawText = await response.text(); // Get text for better debugging
+        if (!response.ok) {
+             console.error('[Dashboard.js] Docs API Response not OK. Raw text:', rawText);
+             throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
+        }
+        const data = JSON.parse(rawText);
+        console.log('[Dashboard.js] Parsed docs data from server:', data);
+        if (data && Array.isArray(data.documents)) {
+            console.log(`[Dashboard.js] Successfully fetched ${data.documents.length} documents from server.`);
+            return data.documents;
+        } else {
+            console.error('[Dashboard.js] Invalid docs response structure from server:', data);
+            throw new Error('Invalid document data structure from server');
+        }
+    } catch (error) {
+        console.error('[Dashboard.js] Error during fetchDocumentsFromServer:', error);
+        throw error;
+    }
+}
+
+// Function to compare document lists (simple comparison based on IDs and maybe updatedAt)
+function areDocumentListsDifferent(listA, listB) {
+    console.log(`[Dashboard.js] Comparing doc lists. List A length: ${listA.length}, List B length: ${listB.length}`);
+    if (listA.length !== listB.length) {
+        console.log('[Dashboard.js] Doc lists have different lengths. Result: true');
+        return true;
+    }
+    const mapA = new Map(listA.map(doc => [doc.id, doc.updatedAt || doc.createdAt]));
+    for (const docB of listB) {
+        if (!mapA.has(docB.id) || mapA.get(docB.id) !== (docB.updatedAt || docB.createdAt)) {
+            console.log(`[Dashboard.js] Difference found for doc ${docB.id}. Result: true`);
+            return true; // Found a new doc or an updated doc
+        }
+    }
+    console.log('[Dashboard.js] Doc lists appear identical. Result: false');
+    return false;
+}
+
+// Function to save data to cache
+function cacheDocumentsData(docs) {
+    console.log(`[Dashboard.js] Attempting to cache ${docs.length} docs.`);
+    const now = new Date().getTime();
+    // Store the raw array structure expected by the cache loader
+    const dataToCache = { documents: docs }; 
+    try {
+        localStorage.setItem(DOCS_CACHE_KEY, JSON.stringify(dataToCache));
+        localStorage.setItem(DOCS_CACHE_EXPIRY_KEY, (now + DOCS_CACHE_DURATION).toString());
+        console.log('[Dashboard.js] Successfully updated docs cache.');
+    } catch (e) {
+        console.warn('[Dashboard.js] Failed to cache docs data:', e);
+    }
+}
+
+// --- End NEW Caching and Fetching Logic ---
+
+// RENDER Document List (Replaces direct manipulation in loadDocuments)
+function renderDocumentList(docs) {
+    console.log(`[Dashboard.js] Entering renderDocumentList with ${docs ? docs.length : 'null'} documents.`);
+    if (!documentList || !emptyState) { // Add check for required elements
+        console.error("[Dashboard.js] Cannot render document list: target elements missing.");
+        return;
+    }
+    
+    // Clear previous content
+    documentList.innerHTML = '';
+    
+    if (!docs || docs.length === 0) {
+        console.log('[Dashboard.js] No documents to render. Showing empty state.');
+        documentList.classList.add('hidden');
+        showEmptyState(); // Use existing function
+        return;
+    }
+    
+    console.log('[Dashboard.js] Rendering document items...');
+    documentList.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    
+    // Sort documents by creation date (newest first) - Apply sorting here
+    docs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    docs.forEach(documentData => {
+        addDocumentToList(documentData); // Calls the existing function to create and append ONE item
+    });
+     console.log('[Dashboard.js] Finished rendering document items.');
+}
+
+// MODIFIED loadDocuments - Now acts as the trigger/orchestrator
+async function loadDocuments() {
+    console.log('[Dashboard.js] Entering loadDocuments (now initializeDocumentsDisplay)...');
+    // This function is now primarily called after auth confirmation or after upload.
+    // It triggers the fetch-compare-cache-render sequence.
+    
+    // Show a less intrusive loading state? Maybe a spinner near the title?
+    // For now, we rely on the background fetch not being too slow after initial cache load.
+
+    try {
+        const freshDocs = await fetchDocumentsFromServer();
+        console.log(`[Dashboard.js] loadDocuments: Fetched ${freshDocs.length} fresh docs.`);
         
-        if (data.documents.length === 0) {
-            console.log('[Dashboard.js] No documents found. Showing empty state.');
-            showEmptyState();
-            return;
+        // Compare with potentially cached data that's already displayed
+        if (areDocumentListsDifferent(currentlyDisplayedDocs, freshDocs)) {
+            console.log('[Dashboard.js] loadDocuments: Server data differs from displayed. Updating display.');
+            currentlyDisplayedDocs = freshDocs;
+            renderDocumentList(currentlyDisplayedDocs);
+            // Optionally show an update notice like in reports.js
+        } else {
+            console.log('[Dashboard.js] loadDocuments: Server data matches displayed. No UI update needed.');
         }
         
-        console.log(`[Dashboard.js] Rendering ${data.documents.length} documents.`);
-        // Add each document to the list
-        data.documents.forEach(documentData => {
-            addDocumentToList(documentData);
-        });
-        
-        // Show document list and hide empty state
-        documentList.classList.remove('hidden');
-        emptyState.classList.add('hidden');
-        console.log('[Dashboard.js] Document list rendered.');
+        // Cache the fresh data
+        cacheDocumentsData(freshDocs); 
 
     } catch (error) {
-        console.error('[Dashboard.js] Error in loadDocuments:', error);
-        showError('Error loading documents. Please try again later.');
-        showEmptyState(); // Show empty state as fallback on error
+        console.error('[Dashboard.js] Error in loadDocuments (fetch stage):', error);
+        // If cache wasn't displayed initially (handled in startDashboard), 
+        // we might need error display here too. But usually, cache is shown first.
+        showErrorNotice('Could not refresh document list.'); // Use new notice function
+        // Avoid calling showEmptyState here unless we know cache failed AND fetch failed.
     }
-    console.log('[Dashboard.js] Exiting loadDocuments.');
+    console.log('[Dashboard.js] Exiting loadDocuments (initializeDocumentsDisplay).');
 }
 
 // Show empty state
@@ -133,13 +261,13 @@ function showEmptyState() {
     emptyState.classList.remove('hidden');
 }
 
-// Show error message
+// Show error message (for upload/general errors, might be less used now)
 function showError(message) {
     errorMessage.textContent = message;
     errorMessage.classList.remove('hidden');
 }
 
-// Add document to the list
+// Add document to the list (Now just creates and appends ONE item)
 function addDocumentToList(documentData) {
     // Create document item
     const documentItem = document.createElement('div');
@@ -252,7 +380,7 @@ function addDocumentToList(documentData) {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                 </button>
-                <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI">
+                <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI" data-is-processed="${documentData.isProcessed || false}">
                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
@@ -276,10 +404,10 @@ function addDocumentToList(documentData) {
         </div>
     `;
     
-    // Add document item to the list
-    documentList.prepend(documentItem);
+    // Append item to the list (modified from prepend)
+    documentList.appendChild(documentItem);
     
-    // Add event listeners for buttons
+    // Add event listeners for buttons (keep existing logic)
     const viewBtn = documentItem.querySelector('.view-btn');
     const simplifyBtn = documentItem.querySelector('.simplify-btn');
     const downloadBtn = documentItem.querySelector('.download-btn');
@@ -656,26 +784,29 @@ function renderMarkdown(markdown) {
 // Render medication list
 function renderMedicationList(medications) {
     if (!medications || medications.length === 0) {
-        return '<p class="text-gray-600">No medications found in this document.</p>';
+        return '<p class="text-gray-600 px-4 py-2">No medications found in this document.</p>';
     }
-    
-    let html = '<div class="space-y-4">';
-    
-    medications.forEach(med => {
+
+    let html = '<div class="space-y-6 divide-y divide-gray-200 px-1">'; // Added padding and divider
+
+    medications.forEach((med, index) => {
+        const medName = med.Name?.Generic || med.Name?.Brand || 'Unnamed Medication';
+
+        // Use <dl> for better structure and spacing
         html += `
-            <div class="bg-blue-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold">${med.name || 'Unnamed Medication'}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                    ${med.dosage ? `<p><span class="font-medium">Dosage:</span> ${med.dosage}</p>` : ''}
-                    ${med.frequency ? `<p><span class="font-medium">Frequency:</span> ${med.frequency}</p>` : ''}
-                    ${med.purpose ? `<p><span class="font-medium">Purpose:</span> ${med.purpose}</p>` : ''}
-                </div>
-                ${med.instructions ? `<p class="mt-2"><span class="font-medium">Instructions:</span> ${med.instructions}</p>` : ''}
-                ${med.warnings ? `<p class="mt-2 text-red-600"><span class="font-medium">Warnings:</span> ${med.warnings}</p>` : ''}
+            <div class="pt-4 ${index === 0 ? 'pb-4' : 'py-4'}"> 
+                <h3 class="text-xl font-semibold mb-3 text-blue-800">${medName}</h3>
+                <dl class="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-6">
+                    ${med.Dosage ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Dosage:</dt> <dd class="mt-1 text-gray-800">${med.Dosage}</dd></div>` : ''}
+                    ${med.Frequency ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Frequency:</dt> <dd class="mt-1 text-gray-800">${med.Frequency}</dd></div>` : ''}
+                    ${med.Purpose ? `<div class="sm:col-span-2"><dt class="font-medium text-gray-600">Purpose:</dt> <dd class="mt-1 text-gray-800">${med.Purpose}</dd></div>` : ''}
+                    ${med['Special Instructions'] ? `<div class="sm:col-span-2"><dt class="font-medium text-gray-600">Instructions:</dt> <dd class="mt-1 text-gray-800">${med['Special Instructions']}</dd></div>` : ''}
+                    ${med['Important Side Effects'] ? `<div class="sm:col-span-2"><dt class="font-medium text-red-700">Warnings:</dt> <dd class="mt-1 text-red-600">${med['Important Side Effects']}</dd></div>` : ''}
+                </dl>
             </div>
         `;
     });
-    
+
     html += '</div>';
     return html;
 }
@@ -698,17 +829,27 @@ async function simplifyDocument(documentId) {
         return;
     }
     
-    // Update the processing status in the UI
-    const statusElementContainer = documentItem.querySelector('.flex-grow .flex.items-center');
-    if (statusElementContainer) {
+    // --- Get status and set appropriate titles ---
+    const simplifyBtn = documentItem.querySelector('.simplify-btn');
+    const isAlreadyProcessed = simplifyBtn ? (simplifyBtn.dataset.isProcessed === 'true') : false;
+    const swalTitle = isAlreadyProcessed ? 'Loading Simplified Document' : 'Processing Document';
+    const swalHtml = isAlreadyProcessed 
+        ? 'Fetching previously simplified content...' 
+        : 'Simplifying document with Gemini AI...<br>This may take a minute or two.';
+    // --- End status check ---
+
+    // Update the processing status in the UI (only show spinner if actually processing)
+    let processingIndicatorElement = null;
+    const statusElementContainer = documentItem.querySelector('.flex-grow .flex.items-center'); 
+    if (statusElementContainer && !isAlreadyProcessed) { // Only add spinner if not already processed
         // Remove any existing status indicators first
         const existingStatuses = statusElementContainer.querySelectorAll('span.inline-flex');
         existingStatuses.forEach(span => span.remove());
 
         // Add processing indicator
-        const processingStatus = document.createElement('span');
-        processingStatus.className = 'processing-indicator inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
-        processingStatus.innerHTML = `
+        processingIndicatorElement = document.createElement('span');
+        processingIndicatorElement.className = 'processing-indicator inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
+        processingIndicatorElement.innerHTML = `
             <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -719,29 +860,28 @@ async function simplifyDocument(documentId) {
         // Add the new processing indicator after the title
         const titleElement = statusElementContainer.querySelector('h3');
         if (titleElement) {
-            titleElement.insertAdjacentElement('afterend', processingStatus);
+            titleElement.insertAdjacentElement('afterend', processingIndicatorElement);
         }
     }
     
     // Disable the simplify button
-    const simplifyBtn = documentItem.querySelector('.simplify-btn');
     if (simplifyBtn) {
         simplifyBtn.disabled = true;
         simplifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
     
     try {
-        // Show loading indicator (SweetAlert)
+        // Show loading indicator (SweetAlert) with conditional title
         Swal.fire({
-            title: 'Processing Document',
-            html: 'Simplifying document with Gemini AI...<br>This may take a minute or two.',
+            title: swalTitle, // Use conditional title
+            html: swalHtml,   // Use conditional html
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
             }
         });
         
-        // Call the API to process the document
+        // Call the API to process the document (Backend handles already processed case)
         const response = await fetch(`/api/documents/simplify/${documentId}`, {
             method: 'POST',
             headers: {
@@ -760,13 +900,12 @@ async function simplifyDocument(documentId) {
         Swal.close();
         
         if (result.success) {
-            console.log('Document processed successfully:', result);
+            console.log('Document processed/retrieved successfully:', result);
             
-            // Update the document in the UI to show processed status
-             if (statusElementContainer) {
+            // Update the document in the UI to show processed status (if it wasn't already)
+             if (statusElementContainer && !isAlreadyProcessed) { // Only update status if it changed
                  // Remove processing indicator
-                 const processingIndicator = statusElementContainer.querySelector('.processing-indicator');
-                 if (processingIndicator) processingIndicator.remove();
+                 if (processingIndicatorElement) processingIndicatorElement.remove();
 
                 const updatedStatus = document.createElement('span');
                 updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
@@ -781,6 +920,8 @@ async function simplifyDocument(documentId) {
                  if (titleElement) {
                      titleElement.insertAdjacentElement('afterend', updatedStatus);
                  }
+                 // Update the button state
+                 if(simplifyBtn) simplifyBtn.dataset.isProcessed = 'true';
              }
             
             // Re-enable the simplify button
@@ -789,20 +930,19 @@ async function simplifyDocument(documentId) {
                 simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
             
-            // Show the processed document
+            // Show the processed document modal
             openProcessedDocument(result.document);
         } else {
-            throw new Error(result.error || 'Unknown error occurred');
+            throw new Error(result.error || 'Unknown error occurred during processing');
         }
     } catch (error) {
         console.error('Error processing document:', error);
-        
-        // Update UI to show error state
-        if (statusElementContainer) {
-            // Remove processing indicator
-             const processingIndicator = statusElementContainer.querySelector('.processing-indicator');
-             if (processingIndicator) processingIndicator.remove();
 
+         // Remove processing indicator if it exists
+         if (processingIndicatorElement) processingIndicatorElement.remove();
+
+        // Update UI to show error state (only if it wasn't already processed)
+        if (statusElementContainer && !isAlreadyProcessed) { 
             const errorStatus = document.createElement('span');
             errorStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-800 ml-2';
             errorStatus.innerHTML = `
@@ -827,114 +967,120 @@ async function simplifyDocument(documentId) {
         // Show error message (SweetAlert)
         Swal.fire({
             icon: 'error',
-            title: 'Processing Failed',
-            text: error.message || 'Failed to process document with Gemini AI',
-            confirmButtonColor: '#16a34a'
+            title: isAlreadyProcessed ? 'Loading Failed' : 'Processing Failed', // Conditional title
+            text: error.message || (isAlreadyProcessed ? 'Failed to load simplified document' : 'Failed to process document with Gemini AI'),
+            confirmButtonColor: '#16a34a' // Or your theme color
         });
     }
 }
 
 // Open processed document in modal
-function openProcessedDocument(doc) {
+async function openProcessedDocument(doc) {
     // Ensure Swal is loaded
     if (typeof Swal === 'undefined') {
         console.error("SweetAlert (Swal) is not loaded.");
         return;
     }
+    
+    // Ensure marked is loaded for markdown parsing
+    if (typeof marked === 'undefined') {
+        console.error("Marked.js is not loaded.");
+        // Potentially show an error to the user or fallback to plain text
+        return; 
+    }
 
     Swal.fire({
-        title: doc.fileName || 'Processed Document',
-        width: '80%',
+        title: `<span class="text-xl font-semibold">${doc.fileName}</span>`,
         html: `
-            <div class="mb-4 border-b border-gray-200">
-                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" role="tablist">
-                    <li class="mr-2" role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-health-500 active" 
-                            id="simplified-tab" data-tabs-target="#simplified-content" type="button" role="tab" 
-                            aria-controls="simplified" aria-selected="true">Simplified</button>
-                    </li>
-                    <li class="mr-2" role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
-                            id="original-tab" data-tabs-target="#original-content" type="button" role="tab" 
-                            aria-controls="original" aria-selected="false">Original</button>
-                    </li>
-                    <li role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
-                            id="medications-tab" data-tabs-target="#medications-content" type="button" role="tab" 
-                            aria-controls="medications" aria-selected="false">Medications</button>
-                    </li>
-                </ul>
+            <div class="border-b border-gray-200 mb-4">
+                <nav class="-mb-px flex space-x-4 px-4" aria-label="Tabs">
+                    <button id="simplified-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('simplified')">
+                        Simplified
+                    </button>
+                    <button id="original-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('original')">
+                        Original
+                    </button>
+                    <button id="medications-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('medications')">
+                        Medications
+                    </button>
+                </nav>
             </div>
-            <div id="tab-content">
-                <div class="block p-4 text-left" id="simplified-content" role="tabpanel" aria-labelledby="simplified-tab">
-                    ${renderMarkdown(doc.processedContent)}
+            <div class="text-left modal-content-area" style="max-height: calc(80vh - 150px); overflow-y: auto;"> 
+                <div id="simplified-content" class="tab-content prose max-w-none p-4"> 
+                    ${doc.processedContent ? marked.parse(doc.processedContent) : '<p>No simplified content available.</p>'}
                 </div>
-                <div class="hidden p-4" id="original-content" role="tabpanel" aria-labelledby="original-tab">
-                    ${doc.fileUrl ? `<iframe src="${doc.fileUrl}" width="100%" height="600" class="border"></iframe>` : '<p>Original document preview not available.</p>'}
+                <div id="original-content" class="tab-content hidden p-4"> 
+                    <img src="${doc.fileUrl}" alt="Original Document" class="max-w-full h-auto mx-auto">
                 </div>
-                <div class="hidden p-4" id="medications-content" role="tabpanel" aria-labelledby="medications-tab">
-                    ${renderMedicationList(doc.medications)}
+                <div id="medications-content" class="tab-content hidden p-1"> 
+                     ${renderMedicationList(doc.medications)}
                 </div>
             </div>
         `,
         showCloseButton: true,
         showConfirmButton: false,
-        focusConfirm: false,
-        didOpen: () => {
-            // Setup tab switching
-            const modal = Swal.getPopup();
-            if (!modal) return;
-
-            const tabs = modal.querySelectorAll('[role="tab"]');
-            const tabContents = modal.querySelectorAll('[role="tabpanel"]');
-            
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    // Hide all tab contents
-                    tabContents.forEach(content => {
-                        content.classList.add('hidden');
-                        content.classList.remove('block');
-                    });
-                    
-                    // Remove active class from all tabs
-                    tabs.forEach(t => {
-                        t.classList.remove('border-health-500', 'active');
-                        t.classList.add('border-transparent');
-                        t.setAttribute('aria-selected', 'false');
-                    });
-                    
-                    // Show the selected tab content
-                    const targetId = tab.dataset.tabsTarget;
-                    if (targetId) {
-                       const target = modal.querySelector(targetId);
-                       if (target) {
-                           target.classList.remove('hidden');
-                           target.classList.add('block');
-                       }
-                    }
-
-                    // Set active class on selected tab
-                    tab.classList.remove('border-transparent');
-                    tab.classList.add('border-health-500', 'active');
-                    tab.setAttribute('aria-selected', 'true');
-                });
-            });
-            
-            // Ensure the default active tab content is shown
-            const defaultActiveTab = modal.querySelector('[role="tab"][aria-selected="true"]');
-             if (defaultActiveTab) {
-                 const defaultTargetId = defaultActiveTab.dataset.tabsTarget;
-                 if (defaultTargetId) {
-                     const defaultTarget = modal.querySelector(defaultTargetId);
-                     if (defaultTarget) {
-                        tabContents.forEach(content => content.classList.add('hidden'));
-                        defaultTarget.classList.remove('hidden');
-                        defaultTarget.classList.add('block');
-                     }
-                 }
-             }
+        width: '90%', // Use percentage for responsiveness
+        customClass: { // Use customClass for more control
+            popup: 'max-w-5xl !overflow-visible', // Set max-width, allow overflow for focus rings etc.
+            htmlContainer: 'overflow-hidden modal-html-container', // Prevent Swal's internal scrollbars, add identifier
+            title: 'pt-5 pr-10 pl-5', // Adjust title padding if needed
+        },
+        didOpen: () => { // Changed from willOpen to didOpen for potentially better timing
+            // Initial tab setup (simplified active)
+            // Add small delay to ensure DOM is fully ready after Swal inserts it
+             setTimeout(() => switchTab('simplified'), 50); 
         }
     });
+}
+
+// Switch tabs in modal
+function switchTab(tabName) {
+    const modal = Swal.getPopup();
+    if (!modal) {
+        console.error('Modal popup not found for tab switching');
+        return;
+    }
+
+    // Get all tab buttons and content panes within the specific modal instance
+    const tabButtons = modal.querySelectorAll('.tab-button');
+    const tabContents = modal.querySelectorAll('.tab-content');
+
+    console.log(`Switching tab to: ${tabName}`, { tabButtons, tabContents }); // Debug log
+
+    // Hide all content panes
+    tabContents.forEach(content => {
+        if (content) content.classList.add('hidden');
+    });
+
+    // Deactivate all tab buttons (reset styles)
+    tabButtons.forEach(button => {
+        if (button) {
+           button.classList.remove('border-indigo-500', 'text-indigo-600');
+           button.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+           button.setAttribute('aria-selected', 'false');
+        }
+    });
+
+    // Activate the selected tab button and show the corresponding content pane
+    const selectedButton = modal.querySelector(`#${tabName}-tab`);
+    const selectedContent = modal.querySelector(`#${tabName}-content`);
+
+    console.log(`Selected button:`, selectedButton);
+    console.log(`Selected content:`, selectedContent);
+
+    if (selectedButton) {
+        selectedButton.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+        selectedButton.classList.add('border-indigo-500', 'text-indigo-600');
+        selectedButton.setAttribute('aria-selected', 'true');
+    } else {
+        console.warn(`Tab button not found for ID: #${tabName}-tab`);
+    }
+
+    if (selectedContent) {
+        selectedContent.classList.remove('hidden');
+    } else {
+        console.warn(`Tab content not found for ID: #${tabName}-content`);
+    }
 }
 
 // Toggle document selection (Handles LOCAL state only now)
