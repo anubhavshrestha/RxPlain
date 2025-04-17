@@ -169,7 +169,7 @@ function addDocumentToList(documentData) {
     let processingStatus = '';
     if (documentData.isProcessed) {
         processingStatus = `
-            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800">
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
                 <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                 </svg>
@@ -247,26 +247,31 @@ function addDocumentToList(documentData) {
         </div>
         <div class="flex space-x-2">
                 <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
                 <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI">
                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </button>
+                <button class="rename-btn p-2 text-gray-500 hover:text-yellow-500" data-id="${documentData.id}" data-name="${documentData.fileName}" title="Rename">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                </button>
                 <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}" title="Download">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                </button>
                 <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}" title="Delete">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
             </div>
         </div>
     `;
@@ -280,6 +285,7 @@ function addDocumentToList(documentData) {
     const downloadBtn = documentItem.querySelector('.download-btn');
     const deleteBtn = documentItem.querySelector('.delete-btn');
     const checkbox = documentItem.querySelector('.select-doc-checkbox');
+    const renameBtn = documentItem.querySelector('.rename-btn');
     
     viewBtn.addEventListener('click', function() {
         const fileUrl = this.dataset.url;
@@ -289,6 +295,12 @@ function addDocumentToList(documentData) {
     simplifyBtn.addEventListener('click', function() {
         const documentId = this.dataset.id;
         simplifyDocument(documentId);
+    });
+    
+    renameBtn.addEventListener('click', function() {
+        const documentId = this.dataset.id;
+        const currentName = this.dataset.name;
+        renameDocument(documentId, currentName, documentItem);
     });
     
     downloadBtn.addEventListener('click', function() {
@@ -313,45 +325,134 @@ function addDocumentToList(documentData) {
     }
 }
 
+// Rename document function
+async function renameDocument(documentId, currentName, documentItem) {
+    if (!Swal) {
+        console.error('SweetAlert (Swal) is not available.');
+        showError('UI component missing. Cannot rename.');
+        return;
+    }
+
+    const { value: newName } = await Swal.fire({
+        title: 'Rename Document',
+        input: 'text',
+        inputValue: currentName,
+        inputLabel: 'New file name',
+        inputPlaceholder: 'Enter the new file name',
+        showCancelButton: true,
+        confirmButtonText: 'Rename',
+        confirmButtonColor: '#16a34a',
+        inputValidator: (value) => {
+            if (!value || value.trim().length === 0) {
+                return 'File name cannot be empty!'
+            }
+            // Basic validation (e.g., avoid slashes), add more as needed
+            if (/[/\\:*?"<>|]/.test(value)) {
+                 return 'Invalid characters in file name.';
+            }
+        }
+    });
+
+    if (newName && newName.trim() !== currentName) {
+        console.log(`Attempting to rename document ${documentId} to ${newName.trim()}`);
+        try {
+            const response = await fetch(`/api/documents/${documentId}/rename`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ newName: newName.trim() })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    // Update UI
+                    const nameElement = documentItem.querySelector('h3');
+                    if (nameElement) {
+                        nameElement.textContent = result.newName; // Use name returned from server
+                    }
+                    // Update the button's data-name attribute too
+                    const renameButton = documentItem.querySelector('.rename-btn');
+                    if (renameButton) {
+                         renameButton.dataset.name = result.newName;
+                    }
+                    // Update download button data-filename if needed
+                    const downloadButton = documentItem.querySelector('.download-btn');
+                    if (downloadButton) {
+                         downloadButton.dataset.filename = result.newName;
+                    }
+                    Swal.fire('Renamed!', 'Document name updated successfully.', 'success');
+                } else {
+                    throw new Error(result.error || 'Failed to rename on server');
+                }
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error renaming document:', error);
+            Swal.fire('Error', `Could not rename document: ${error.message}`, 'error');
+        }
+    } else if (newName && newName.trim() === currentName) {
+        console.log('Rename cancelled or name unchanged.');
+    }
+}
+
 // Delete document
 async function deleteDocument(documentId, documentItem) {
-    if (!confirm('Are you sure you want to delete this document?')) {
+    if (!Swal) {
+        console.error('SweetAlert (Swal) is not available.');
+        showError('UI component missing. Cannot delete.');
         return;
     }
     
-    try {
-        const user = auth.currentUser;
-        if (!user) {
-            showError('You must be logged in to delete files.');
-            return;
-        }
-        
-        // Send delete request to server
-        const response = await fetch(`/api/documents/${documentId}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json'
+    const result = await Swal.fire({
+        title: 'Are you sure?',
+        text: "You won't be able to revert this! The original file will be deleted.",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, delete it!'
+    });
+
+    if (result.isConfirmed) {
+        console.log(`Attempting to delete document ${documentId}`);
+        try {
+            // Show some temporary deleting state on the item?
+            documentItem.style.opacity = '0.5'; 
+
+            const response = await fetch(`/api/documents/${documentId}`, {
+                method: 'DELETE'
+            });
+
+            if (response.ok) {
+                // Remove document item from the list with animation
+                documentItem.classList.add('animate-fade-out'); // Add fade-out animation class
+                setTimeout(() => {
+                     documentItem.remove();
+                     // Show empty state if no documents left
+                     if (documentList.children.length === 0) {
+                         showEmptyState();
+                     }
+                     // Update selected count if the deleted item was selected
+                     if (selectedDocuments.has(documentId)) {
+                         selectedDocuments.delete(documentId);
+                         updateSelectedCount();
+                     }
+                }, 500); // Match animation duration
+
+                Swal.fire('Deleted!', 'Your document has been deleted.', 'success');
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.statusText}`);
             }
-        });
-        
-        if (response.ok) {
-            // Remove document item from the list
-            documentItem.remove();
-            
-            // Show empty state if no documents left
-            if (documentList.children.length === 0) {
-                showEmptyState();
-            }
-            
-            // Show success message
-            showError('Document deleted successfully');
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to delete document');
+        } catch (error) {
+            console.error('Error deleting document:', error);
+            documentItem.style.opacity = '1'; // Restore opacity on error
+            Swal.fire('Error', `Could not delete document: ${error.message}`, 'error');
         }
-    } catch (error) {
-        console.error('Error deleting document:', error);
-        showError('Error deleting document. Please try again.');
     }
 }
 

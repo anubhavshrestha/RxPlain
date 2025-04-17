@@ -53,8 +53,8 @@
 
 <!-- Report Card Template -->
 <template id="report-card-template">
-    <div class="report-card bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full">
-        <div class="p-6 flex-grow">
+    <div class="report-card bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full" data-report-id="">
+        <div class="p-6 flex-grow relative">
             <h3 class="report-title text-xl font-bold text-gray-900 mb-2"></h3>
             <p class="report-date text-sm text-gray-500 mb-4"></p>
             
@@ -80,12 +80,26 @@
                     <!-- Document badges will be inserted here by JS -->
                 </div>
             </div>
-        </div>
-        
-        <div class="p-4 bg-gray-50 border-t border-gray-200">
-            <a href="#" class="view-report-btn inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 transition-colors duration-150 ease-in-out">
-                View Full Report
-            </a>
+
+            <!-- Action Icons - Moved to top right -->
+            <div class="absolute top-4 right-4 flex space-x-2">
+                 <a href="#" class="view-report-btn p-2 text-gray-500 hover:text-health-600 rounded-full hover:bg-gray-100" title="View Full Report">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </a>
+                 <button class="rename-report-btn p-2 text-gray-500 hover:text-yellow-600 rounded-full hover:bg-gray-100" title="Rename Report">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"> 
+                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                </button>
+                 <button class="delete-report-btn p-2 text-gray-500 hover:text-red-600 rounded-full hover:bg-gray-100" title="Delete Report">
+                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
+            </div>
         </div>
     </div>
 </template>

@@ -366,6 +366,32 @@ document.addEventListener('DOMContentLoaded', async function() {
                      console.warn('[Reports.js] .view-report-btn element not found in template.');
                 }
 
+                // -- Add listeners for new buttons --
+                const renameBtn = card.querySelector('.rename-report-btn');
+                const deleteBtn = card.querySelector('.delete-report-btn');
+                const reportCardElement = card.querySelector('.report-card'); // Get the top-level card element
+                if (reportCardElement) {
+                     reportCardElement.dataset.reportId = report.id; // Store ID on the main card element
+                }
+
+                if (renameBtn) {
+                    renameBtn.addEventListener('click', () => {
+                        const currentTitle = report.title || 'Untitled Report';
+                        renameReport(report.id, currentTitle, reportCardElement); 
+                    });
+                } else {
+                     console.warn('[Reports.js] .rename-report-btn element not found in template.');
+                }
+
+                if (deleteBtn) {
+                    deleteBtn.addEventListener('click', () => {
+                        deleteReport(report.id, reportCardElement);
+                    });
+                } else {
+                    console.warn('[Reports.js] .delete-report-btn element not found in template.');
+                }
+                // -- End new listeners --
+
                 // Append the fully constructed card
                 reportsContainer.appendChild(card);
                 console.log(`[Reports.js] Successfully appended card for report ${index + 1}.`);
@@ -377,6 +403,129 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
          console.log('[Reports.js] Finished rendering all report cards.');
     }
+
+    // --- ADD NEW FUNCTIONS for Report Management ---
+
+    // Rename Report
+    async function renameReport(reportId, currentTitle, cardElement) {
+        if (!Swal) { 
+            console.error('SweetAlert needed for rename.'); 
+            showErrorNotice('UI component unavailable.'); 
+            return; 
+        }
+
+        const { value: newTitle } = await Swal.fire({
+            title: 'Rename Report',
+            input: 'text',
+            inputValue: currentTitle,
+            inputLabel: 'New report title',
+            inputPlaceholder: 'Enter the new report title',
+            showCancelButton: true,
+            confirmButtonText: 'Rename',
+            confirmButtonColor: '#16a34a', // Green color
+            inputValidator: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Report title cannot be empty!'
+                }
+            }
+        });
+
+        if (newTitle && newTitle.trim() !== currentTitle) {
+            console.log(`Attempting to rename report ${reportId} to ${newTitle.trim()}`);
+            try {
+                const response = await fetch(`/api/documents/reports/${reportId}/rename`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ newTitle: newTitle.trim() })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        // Update UI
+                        const titleElement = cardElement.querySelector('.report-title');
+                        if (titleElement) {
+                            titleElement.textContent = result.newTitle; // Use title returned from server
+                        }
+                        // Update cache (optional, or let next refresh handle it)
+                        // For simplicity, we can just show success and let cache update later
+                        // cacheReportsData(updatedReportList); // More complex update
+                        Swal.fire('Renamed!', 'Report title updated successfully.', 'success');
+                    } else {
+                        throw new Error(result.error || 'Failed to rename on server');
+                    }
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Server error: ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Error renaming report:', error);
+                Swal.fire('Error', `Could not rename report: ${error.message}`, 'error');
+            }
+        } else {
+            console.log('Rename cancelled or title unchanged.');
+        }
+    }
+
+    // Delete Report
+    async function deleteReport(reportId, cardElement) {
+        if (!Swal) { 
+            console.error('SweetAlert needed for delete.'); 
+            showErrorNotice('UI component unavailable.'); 
+            return; 
+        }
+
+        const result = await Swal.fire({
+            title: 'Are you sure?',
+            text: "You won't be able to revert this! The report will be permanently deleted.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33', // Red color
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        });
+
+        if (result.isConfirmed) {
+            console.log(`Attempting to delete report ${reportId}`);
+            try {
+                cardElement.style.opacity = '0.5'; // Indicate deleting
+
+                const response = await fetch(`/api/documents/reports/${reportId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // Remove card from UI with animation
+                    cardElement.classList.add('animate-fade-out'); // Add fade-out animation class
+                    setTimeout(() => {
+                        cardElement.remove();
+                         // Check if this leaves the container empty
+                         if (reportsContainer.children.length === 0) {
+                              emptyState.classList.remove('hidden');
+                         }
+                    }, 500); // Match animation duration
+
+                    // Clear cache and let next load/refresh fetch updated list
+                    clearReportsCache(false); // Clear cache without forcing reload yet
+                    Swal.fire('Deleted!', 'The report has been deleted.', 'success');
+                    
+                    // Optionally, trigger a background refresh immediately if desired
+                    // initializeReportsDisplay(); // Or a lighter version that just fetches
+
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Server error: ${response.statusText}`);
+                }
+            } catch (error) {
+                console.error('Error deleting report:', error);
+                cardElement.style.opacity = '1'; // Restore opacity on error
+                Swal.fire('Error', `Could not delete report: ${error.message}`, 'error');
+            }
+        }
+    }
+    // --- End Report Management Functions ---
 
     // Start the process
     console.log('[Reports.js] Calling initializeReportsDisplay...');

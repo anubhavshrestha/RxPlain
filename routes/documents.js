@@ -194,26 +194,101 @@ router.delete('/:documentId', isAuthenticated, async (req, res) => {
     // Delete file from Firebase Storage
     try {
       const bucket = storage.bucket();
+      console.log(`Attempting to delete storage file: ${documentData.filePath}`);
       await bucket.file(documentData.filePath).delete();
+      console.log(`Successfully deleted storage file: ${documentData.filePath}`);
     } catch (storageError) {
-      console.error('Error deleting file from Firebase Storage:', storageError);
-      // Continue with deletion even if the file doesn't exist in storage
-      // This handles the case where the file might have been deleted but the metadata still exists
+      // Log storage errors but don't block Firestore deletion
+      console.error(`Error deleting file from Firebase Storage: ${storageError.message}. Code: ${storageError.code}`);
+      // Check for specific "Not Found" errors which are okay
+      if (storageError.code !== 404) {
+           // For errors other than "Not Found", maybe log more severely or handle differently?
+           console.warn(`Storage deletion failed for ${documentData.filePath}, but proceeding with Firestore deletion.`);
+      }
     }
     
     // Delete document metadata from Firestore
+    console.log(`Deleting Firestore document: ${documentId}`);
     await db.collection('documents').doc(documentId).delete();
-    
+    console.log(`Successfully deleted Firestore document: ${documentId}`);
+
     // Remove document reference from user's documents array
+    console.log(`Removing document ref ${documentId} from user ${userId}`);
     await db.collection('users').doc(userId).update({
-      documents: admin.firestore.FieldValue.arrayRemove(documentId)
+        documents: admin.firestore.FieldValue.arrayRemove(documentId)
     });
+    console.log(`Successfully removed document ref ${documentId} from user ${userId}`);
     
+    // Also delete associated medications (if any)
+    try {
+        const medQuery = db.collection('medications').where('documentId', '==', documentId);
+        const medSnapshot = await medQuery.get();
+        if (!medSnapshot.empty) {
+            console.log(`Found ${medSnapshot.size} medication entries to delete for document ${documentId}`);
+            const batch = db.batch();
+            medSnapshot.docs.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+            await batch.commit();
+            console.log(`Successfully deleted ${medSnapshot.size} associated medication entries.`);
+        }
+    } catch (medError) {
+         console.error(`Error deleting associated medications for document ${documentId}:`, medError);
+         // Log but don't fail the overall document deletion
+    }
+
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error('Error deleting document:', error);
     return res.status(500).json({ error: 'Server error' });
   }
+});
+
+// RENAME a document
+router.put('/:documentId/rename', isAuthenticated, async (req, res) => {
+    try {
+        const documentId = req.params.documentId;
+        const userId = req.user.uid;
+        const { newName } = req.body;
+
+        console.log(`Rename request for doc ${documentId} by user ${userId} to "${newName}"`);
+
+        if (!newName || typeof newName !== 'string' || newName.trim().length === 0) {
+            return res.status(400).json({ success: false, error: 'New name is required.' });
+        }
+        
+        // Validate name (basic)
+        if (/[/\\:*?"<>|]/.test(newName.trim())) {
+            return res.status(400).json({ success: false, error: 'Invalid characters in file name.' });
+        }
+
+        const docRef = db.collection('documents').doc(documentId);
+        const docSnapshot = await docRef.get();
+
+        if (!docSnapshot.exists) {
+            return res.status(404).json({ success: false, error: 'Document not found' });
+        }
+
+        const documentData = docSnapshot.data();
+
+        // Check ownership
+        if (documentData.userId !== userId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+
+        // Update Firestore document
+        await docRef.update({
+            fileName: newName.trim(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        console.log(`Successfully renamed document ${documentId} to "${newName.trim()}"`);
+        return res.status(200).json({ success: true, newName: newName.trim() });
+
+    } catch (error) {
+        console.error('Error renaming document:', error);
+        return res.status(500).json({ success: false, error: 'Server error while renaming document' });
+    }
 });
 
 // Add new route for document processing
@@ -426,6 +501,93 @@ router.get('/reports/:reportId', isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error('Error fetching report:', error);
     return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// RENAME a specific report
+router.put('/reports/:reportId/rename', isAuthenticated, async (req, res) => {
+  try {
+    const reportId = req.params.reportId;
+    const userId = req.user.uid;
+    const { newTitle } = req.body;
+
+    console.log(`Rename request for report ${reportId} by user ${userId} to "${newTitle}"`);
+
+    if (!newTitle || typeof newTitle !== 'string' || newTitle.trim().length === 0) {
+        return res.status(400).json({ success: false, error: 'New report title is required.' });
+    }
+
+    const reportRef = db.collection('reports').doc(reportId);
+    const reportSnapshot = await reportRef.get();
+
+    if (!reportSnapshot.exists) {
+        return res.status(404).json({ success: false, error: 'Report not found' });
+    }
+
+    const reportData = reportSnapshot.data();
+
+    // Check ownership
+    if (reportData.userId !== userId) {
+        return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    // Update Firestore document
+    await reportRef.update({
+        title: newTitle.trim(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp() // Keep track of updates
+    });
+
+    console.log(`Successfully renamed report ${reportId} to "${newTitle.trim()}"`);
+    return res.status(200).json({ success: true, newTitle: newTitle.trim() });
+
+  } catch (error) {
+    console.error('Error renaming report:', error);
+    return res.status(500).json({ success: false, error: 'Server error while renaming report' });
+  }
+});
+
+// DELETE a specific report
+router.delete('/reports/:reportId', isAuthenticated, async (req, res) => {
+  try {
+    const reportId = req.params.reportId;
+    const userId = req.user.uid;
+
+    console.log(`Delete request for report ${reportId} by user ${userId}`);
+
+    const reportRef = db.collection('reports').doc(reportId);
+    const reportSnapshot = await reportRef.get();
+
+    if (!reportSnapshot.exists) {
+      // If report doesn't exist, maybe it was already deleted? Still try removing from user array.
+      console.warn(`Report ${reportId} not found for deletion, attempting to remove from user array anyway.`);
+    } else {
+        const reportData = reportSnapshot.data();
+        // Check ownership before deleting
+        if (reportData.userId !== userId) {
+            return res.status(403).json({ success: false, error: 'Unauthorized' });
+        }
+        // Delete the report document itself
+        await reportRef.delete();
+        console.log(`Successfully deleted report document ${reportId}`);
+    }
+
+    // Remove report ID from the user's list of reports for consistency
+    try {
+        const userRef = db.collection('users').doc(userId);
+        await userRef.update({
+            reports: admin.firestore.FieldValue.arrayRemove(reportId)
+        });
+        console.log(`Successfully removed report ref ${reportId} from user ${userId}`);
+    } catch (userUpdateError) {
+        // Log error but don't fail the request if user update fails (report itself is deleted)
+        console.error(`Failed to remove report ref ${reportId} from user ${userId}:`, userUpdateError);
+    }
+
+    return res.status(200).json({ success: true });
+
+  } catch (error) {
+    console.error('Error deleting report:', error);
+    return res.status(500).json({ success: false, error: 'Server error while deleting report' });
   }
 });
 
