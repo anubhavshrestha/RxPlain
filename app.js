@@ -103,36 +103,7 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     
     if (!userDoc.exists) {
-      console.log(`User document doesn't exist for ${req.user.uid}. Creating default user document.`);
-      
-      // Create a default user document for authenticated users without one
-      const defaultUserData = {
-        email: req.user.email || 'No email provided',
-        displayName: req.user.name || req.user.email || 'New User',
-        username: req.user.email ? req.user.email.split('@')[0] : `user_${Date.now()}`,
-        role: 'patient', // Default role
-        createdAt: new Date(),
-        documents: [],
-        reports: [],
-        medications: []
-      };
-      
-      try {
-        // Save default user data
-        await db.collection('users').doc(req.user.uid).set(defaultUserData);
-        
-        // Render patient dashboard with default user data
-        return res.render('dashboard', { 
-          title: 'Document Dashboard - RxPlain',
-          user: { ...req.user, ...defaultUserData }
-        });
-      } catch (createError) {
-        console.error('Error creating default user document:', createError);
-        return res.status(500).render('error', {
-          title: 'Error - RxPlain',
-          message: 'Error creating your user profile. Please try logging out and in again.'
-        });
-      }
+      return res.redirect('/register');
     }
     
     const userData = userDoc.data();
@@ -153,7 +124,7 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     console.error('Error fetching user data:', error);
     res.status(500).render('error', { 
       title: 'Error - RxPlain',
-      message: 'Error loading dashboard. Please try logging in again.'
+      message: 'Error loading dashboard'
     });
   }
 });

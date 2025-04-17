@@ -789,7 +789,10 @@ router.get('/reports', isAuthenticated, async (req, res) => {
     const reportIds = userData.reports || [];
     
     if (reportIds.length === 0) {
-      return res.status(200).json({ reports: [] });
+      return res.status(200).json({ 
+        success: true,
+        reports: [] 
+      });
     }
     
     // Get report details
@@ -817,7 +820,10 @@ router.get('/reports', isAuthenticated, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching user reports:', error);
-    return res.status(500).json({ error: 'Server error' });
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error' 
+    });
   }
 });
 
