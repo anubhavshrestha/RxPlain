@@ -74,41 +74,57 @@ function initializeDashboardUI() {
 
 // Load user documents from server
 async function loadDocuments() {
+    console.log('[Dashboard.js] Entering loadDocuments...');
     try {
-        // Show loading state
-        documentList.innerHTML = '<div class="text-center py-4"><p class="text-gray-500">Loading documents...</p></div>';
-        documentList.classList.remove('hidden');
-        emptyState.classList.add('hidden');
+        // Show loading state - **REMOVED the disruptive innerHTML clearing**
+        // documentList.innerHTML = '<div class="text-center py-4"><p class="text-gray-500">Loading documents...</p></div>';
+        // Instead, maybe show a subtle indicator elsewhere, or just let it refresh
+        console.log('[Dashboard.js] Fetching user documents from /api/documents/user-documents');
         
         // Get user's documents from the server
         const response = await fetch('/api/documents/user-documents');
+        console.log(`[Dashboard.js] API response status: ${response.status}`);
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('[Dashboard.js] Failed to fetch documents. Status:', response.status, 'Response:', errorText);
             throw new Error('Failed to fetch documents');
         }
         
         const data = await response.json();
+        console.log('[Dashboard.js] Received document data:', data);
         
-        if (!data.documents || data.documents.length === 0) {
+        if (!data || !Array.isArray(data.documents)) {
+             console.error('[Dashboard.js] Invalid data structure received:', data);
+             throw new Error('Invalid document data structure');
+        }
+
+        // NOW clear the list before re-rendering
+        console.log('[Dashboard.js] Clearing current document list before rendering.');
+        documentList.innerHTML = ''; 
+        
+        if (data.documents.length === 0) {
+            console.log('[Dashboard.js] No documents found. Showing empty state.');
             showEmptyState();
             return;
         }
         
-        // Clear document list
-        documentList.innerHTML = '';
-        
+        console.log(`[Dashboard.js] Rendering ${data.documents.length} documents.`);
         // Add each document to the list
         data.documents.forEach(documentData => {
             addDocumentToList(documentData);
         });
         
-        // Show document list
+        // Show document list and hide empty state
         documentList.classList.remove('hidden');
         emptyState.classList.add('hidden');
+        console.log('[Dashboard.js] Document list rendered.');
+
     } catch (error) {
-        console.error('Error loading documents:', error);
+        console.error('[Dashboard.js] Error in loadDocuments:', error);
         showError('Error loading documents. Please try again later.');
-        showEmptyState();
+        showEmptyState(); // Show empty state as fallback on error
     }
+    console.log('[Dashboard.js] Exiting loadDocuments.');
 }
 
 // Show empty state
@@ -1001,15 +1017,35 @@ async function createCombinedReport() {
             throw new Error(result.error || 'Failed to create combined report');
         }
     } catch (error) {
-        console.error('Error creating combined report:', error);
+        console.error('Error creating combined report:', error); // Log the original error
         
          // Close loading Swal if it's still open due to error
          Swal.close(); 
 
+        // Determine the message to show the user
+        let displayMessage = 'Failed to create combined report. Please try again.'; // Default message
+        if (error.response && typeof error.response.json === 'function') {
+            // If it looks like a fetch response error, try to get the JSON body
+            try {
+                 const errorData = await error.response.json();
+                 if (errorData && errorData.error) {
+                    displayMessage = errorData.error; // Use the error message from the backend API
+                 }
+            } catch (parseError) {
+                 console.error('Could not parse error response JSON:', parseError);
+            }
+        } else if (error.message) {
+             // For other types of errors, use the error message if it doesn't look too technical
+             // Avoid showing raw technical messages like the original Gemini error
+             if (!error.message.includes('GoogleGenerativeAI Error') && !error.message.includes('googleapis.com')) {
+                displayMessage = error.message;
+             }
+        }
+
         Swal.fire({
             icon: 'error',
             title: 'Report Creation Failed',
-            text: error.message || 'Failed to create combined report. Please try again.',
+            text: displayMessage, // Show the user-friendly message
             confirmButtonColor: '#15803d' // Your theme color
         });
     }

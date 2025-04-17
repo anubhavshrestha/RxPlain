@@ -819,9 +819,33 @@ router.post('/combined-report', isAuthenticated, async (req, res) => {
     
     console.log('Generating combined report for documents:', documentIds);
     
-    const result = await geminiProcessor.model.generateContent(reportPrompt);
-    const combinedReport = result.response.text();
+    let combinedReport;
+    try {
+      // Call Gemini
+      const result = await geminiProcessor.model.generateContent(reportPrompt);
+      combinedReport = result.response.text();
+    } catch (error) {
+      console.error('Error calling Gemini API for combined report:', error);
+      // Check if it's a GoogleGenerativeAIError and specifically a 429
+      if (error.message && error.message.includes('[429 Too Many Requests]')) {
+        // It's a quota error
+        console.warn('Gemini API quota exceeded during combined report generation.');
+        return res.status(429).json({
+          success: false,
+          error: 'Report generation service is temporarily busy due to high demand. Please try again in a few minutes.'
+        });
+      } else {
+        // Other Gemini or network error
+        return res.status(500).json({
+          success: false,
+          error: 'An error occurred while communicating with the report generation service.'
+        });
+      }
+    }
     
+    // If Gemini call succeeded, continue processing
+    console.log('Combined report generated successfully (sample):', combinedReport.substring(0, 200));
+
     // Generate a list of all unique medications
     const allMedications = [];
     const medicationNames = new Set();
