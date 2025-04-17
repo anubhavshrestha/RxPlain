@@ -318,11 +318,6 @@ function addDocumentToList(documentData) {
         const documentId = this.dataset.id;
         toggleDocumentSelection(documentId, this.checked);
     });
-    
-    // Check the checkbox if the document is already selected
-    if (documentData.isSelected) {
-        checkbox.checked = true;
-    }
 }
 
 // Rename document function
@@ -942,8 +937,9 @@ function openProcessedDocument(doc) {
     });
 }
 
-// Toggle document selection
+// Toggle document selection (Handles LOCAL state only now)
 async function toggleDocumentSelection(documentId, isSelected) {
+    console.log(`[Dashboard.js] Toggling local selection for ${documentId} to ${isSelected}`);
     // Update UI immediately to appear responsive
     if (isSelected) {
         selectedDocuments.add(documentId);
@@ -953,27 +949,6 @@ async function toggleDocumentSelection(documentId, isSelected) {
     
     // Update UI to show selected document count right away
     updateSelectedCount();
-    
-    // Then send update to server in the background
-    try {
-        const response = await fetch(`/api/documents/select/${documentId}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ selected: isSelected }) 
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Error updating document selection:', errorData.error);
-            // Don't show visible error to user, just log it
-            // Optionally, revert UI state here if persistence fails critically
-        }
-    } catch (error) {
-        console.error('Error toggling document selection:', error);
-        // Don't revert the UI or show error message to maintain responsiveness
-    }
 }
 
 // Update selected document count

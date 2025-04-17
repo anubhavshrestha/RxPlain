@@ -814,45 +814,6 @@ router.post('/simplify/:documentId', isAuthenticated, async (req, res) => {
   }
 });
 
-// Toggle document selection status (for multi-select)
-router.post('/select/:documentId', isAuthenticated, async (req, res) => {
-  try {
-    const documentId = req.params.documentId;
-    const userId = req.user.uid;
-    
-    // Get document details
-    const docSnapshot = await db.collection('documents').doc(documentId).get();
-    
-    if (!docSnapshot.exists) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
-    
-    const documentData = docSnapshot.data();
-    
-    // Check if the document belongs to the user
-    if (documentData.userId !== userId) {
-      return res.status(403).json({ error: 'Unauthorized' });
-    }
-    
-    // Toggle selection status
-    const isSelected = !documentData.isSelected;
-    
-    // Update the document
-    await db.collection('documents').doc(documentId).update({
-      isSelected: isSelected,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    
-    return res.status(200).json({
-      success: true,
-      isSelected: isSelected
-    });
-  } catch (error) {
-    console.error('Error toggling document selection:', error);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
-
 // Get medications for a user
 router.get('/medications', isAuthenticated, async (req, res) => {
   try {
