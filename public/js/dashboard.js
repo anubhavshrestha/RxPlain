@@ -35,7 +35,7 @@ const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 function initializeDashboardUI() {
     setupFilterUI();
     setupFileUpload();
-    setupSearch();
+    // setupSearch(); // REMOVED - Handled by setupFilters called within setupFilterUI
     
     // Initialize selectedDocuments Set from checked checkboxes (if page reloads)
     const checkedBoxes = document.querySelectorAll('.select-doc-checkbox:checked');
@@ -169,7 +169,7 @@ function addDocumentToList(documentData) {
     let processingStatus = '';
     if (documentData.isProcessed) {
         processingStatus = `
-            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 ml-2">
                 <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                 </svg>
@@ -1263,7 +1263,10 @@ function setupFilterUI() {
                  <input type="text" id="search-input" placeholder="Search documents..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-health-500 focus:border-health-500 sm:text-sm">
              </div>
             <div class="flex flex-wrap gap-2">
-                <select id="type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 text-sm">
+                <select 
+                    id="type-filter" 
+                    class="appearance-none block w-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 pr-8 rounded-md leading-tight focus:outline-none focus:bg-white focus:border-health-500 focus:ring-1 focus:ring-health-500 shadow-sm text-sm"
+                    style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e\"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.25em;" >
                     <option value="all">All Types</option>
                     <option value="PRESCRIPTION">Prescriptions</option>
                     <option value="LAB_REPORT">Lab Reports</option>
@@ -1272,7 +1275,10 @@ function setupFilterUI() {
                     <option value="MISCELLANEOUS">Miscellaneous</option>
                     <option value="UNCLASSIFIED">Unclassified</option> 
                 </select>
-                <select id="status-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 text-sm">
+                <select 
+                    id="status-filter" 
+                    class="appearance-none block w-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 pr-8 rounded-md leading-tight focus:outline-none focus:bg-white focus:border-health-500 focus:ring-1 focus:ring-health-500 shadow-sm text-sm"
+                    style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e\"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.25em;" >
                     <option value="all">All Status</option>
                     <option value="processed">Processed</option>
                     <option value="processing">Processing</option>
