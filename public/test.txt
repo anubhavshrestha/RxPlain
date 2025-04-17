@@ -1,0 +1,10 @@
+This is a test file.
+It contains multiple lines of text.
+We can use this to test our text extraction functionality.
+
+Important medical terms:
+- Acetaminophen
+- Ibuprofen
+- Amoxicillin
+
+Patient should take medication as prescribed. 

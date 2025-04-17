@@ -1,61 +1,253 @@
-<div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-    <div class="p-6">
-        <h2 class="text-2xl font-semibold mb-4">Your Document Dashboard</h2>
-        
-        <div id="upload-container" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
-            <svg class="w-12 h-12 mx-auto text-health-500 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-            </svg>
-            <p class="text-gray-600 mb-2">Upload a new document</p>
-            <button id="browse-button" class="btn btn-primary">Browse Files</button>
-            <p class="mt-4 text-sm text-gray-500">Supports PDF, JPG, PNG up to 10MB</p>
-            
-            <!-- Hidden file input -->
-            <input type="file" id="file-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
-            
-            <!-- Error message container -->
-            <div id="error-message" class="mt-4 text-red-500 hidden"></div>
-            
-            <!-- Upload progress -->
-            <div id="upload-progress" class="mt-4 hidden">
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="progress-bar" class="bg-health-500 h-2.5 rounded-full" style="width: 0%"></div>
+<!-- Document Dashboard with Tabs Interface -->
+<div class="mb-8">
+    <!-- Tab Navigation -->
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="flex -mb-px">
+            <button id="tab-documents" class="tab-button px-6 py-3 border-b-2 border-health-500 text-health-600 font-medium text-sm leading-5 focus:outline-none">
+                Documents
+            </button>
+            <button id="tab-reports" class="tab-button px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm leading-5 focus:outline-none">
+                Reports
+            </button>
+            <button id="tab-medications" class="tab-button px-6 py-3 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm leading-5 focus:outline-none">
+                Medications
+            </button>
+        </nav>
+    </div>
+
+    <!-- Documents Tab Content -->
+    <div id="documents-tab" class="tab-content">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="col-span-2 bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="p-6">
+                    <h2 class="text-2xl font-semibold mb-4">Your Document Dashboard</h2>
+                    
+                    <div id="upload-container" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
+                        <svg class="w-12 h-12 mx-auto text-health-500 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                        <p class="text-gray-600 mb-2">Upload a new document</p>
+                        <button id="browse-button" class="btn btn-primary">Browse Files</button>
+                        <p class="mt-4 text-sm text-gray-500">Supports PDF, JPG, PNG up to 10MB</p>
+                        
+                        <!-- Hidden file input -->
+                        <input type="file" id="file-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
+                        
+                        <!-- Error message container -->
+                        <div id="error-message" class="mt-4 text-red-500 hidden"></div>
+                        
+                        <!-- Upload progress -->
+                        <div id="upload-progress" class="mt-4 hidden">
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="progress-bar" class="bg-health-500 h-2.5 rounded-full" style="width: 0%"></div>
+                            </div>
+                            <p id="progress-text" class="text-sm text-gray-600 mt-2">Uploading: <span id="progress-percentage">0%</span></p>
+                        </div>
+                    </div>
                 </div>
-                <p id="progress-text" class="text-sm text-gray-600 mt-2">Uploading: <span id="progress-percentage">0%</span></p>
+            </div>
+
+            <!-- Create Report Card -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="p-6">
+                    <h2 class="text-xl font-semibold mb-4">Create Report</h2>
+                    <div class="text-center py-4">
+                        <div class="mb-4">
+                            <div id="selected-count" class="text-3xl font-bold text-health-600 mb-2">0</div>
+                            <div id="selection-status" class="text-gray-600">
+                                <p id="no-selection">No documents selected</p>
+                                <p id="has-selection" class="hidden">Documents selected</p>
+                            </div>
+                        </div>
+                        <button id="create-report-btn" class="btn btn-primary w-full opacity-50 cursor-not-allowed" disabled>
+                            Create Report
+                        </button>
+                        <p class="mt-4 text-xs text-gray-500">Select at least one document to create a report</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Recent Documents</h2>
+                    <div class="flex space-x-4">
+                        <div class="relative">
+                            <select id="document-type-filter" class="pl-3 pr-10 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent">
+                                <option value="ALL">All Documents</option>
+                                <option value="PRESCRIPTION">Prescriptions</option>
+                                <option value="LAB_REPORT">Lab Reports</option>
+                                <option value="CLINICAL_NOTES">Clinical Notes</option>
+                                <option value="INSURANCE">Insurance</option>
+                                <option value="MISCELLANEOUS">Miscellaneous</option>
+                            </select>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="search-input" placeholder="Search documents" class="px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent">
+                            <svg class="w-5 h-5 text-gray-400 absolute right-3 top-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-4 mb-6">
+                    <!-- Empty state -->
+                    <div id="empty-state" class="text-center py-8 text-gray-500">
+                        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 012-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p>You haven't uploaded any documents yet.</p>
+                        <p>Upload your first document to get started!</p>
+                    </div>
+                    
+                    <!-- Document list container -->
+                    <div id="document-list" class="hidden">
+                        <!-- Document items will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 p-4 bg-health-50 rounded-lg border border-health-100">
+            <div class="flex items-center">
+                <svg class="w-6 h-6 text-health-500 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p class="text-health-800">Select multiple documents and click "Create Report" to generate a simplified combined report.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reports Tab Content -->
+    <div id="reports-tab" class="tab-content hidden">
+        <div class="container mx-auto">
+            <!-- Reports Header -->
+            <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                    <h1 class="text-4xl font-bold text-gray-900 tracking-tight">Your Medical Reports</h1>
+                    <p class="mt-2 text-xl text-gray-600">Combined insights from your medical documents</p>
+                </div>
+            </div>
+        
+            <!-- Reports Content -->
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+                <div id="reports-list" class="divide-y divide-gray-200">
+                    <!-- Loading State -->
+                    <div id="reports-loading" class="py-20 text-center">
+                        <div class="inline-block animate-spin h-10 w-10 border-4 border-gray-200 rounded-full border-t-health-500"></div>
+                        <p class="mt-4 text-lg text-gray-600">Loading your medical reports...</p>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="reports-empty" class="hidden py-20 text-center">
+                        <div class="mx-auto w-24 h-24 rounded-full bg-health-50 flex items-center justify-center">
+                            <svg class="w-12 h-12 text-health-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 class="mt-6 text-xl font-medium text-gray-900">No reports yet</h3>
+                        <p class="mt-2 text-gray-600 max-w-md mx-auto">Create your first combined report by selecting multiple documents from your dashboard.</p>
+                    </div>
+                    
+                    <!-- Reports Grid -->
+                    <div id="reports-container" class="hidden p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Report cards will be inserted here by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Medications Tab Content -->
+    <div id="medications-tab" class="tab-content hidden">
+        <div class="container mx-auto">
+            <div class="mb-8">
+                <h1 class="text-4xl font-bold text-gray-900 tracking-tight">Your Medications</h1>
+                <p class="mt-2 text-xl text-gray-600">Medications extracted from your medical documents</p>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 p-6">
+                <!-- Loading State -->
+                <div id="medications-loading" class="py-20 text-center">
+                    <div class="inline-block animate-spin h-10 w-10 border-4 border-gray-200 rounded-full border-t-health-500"></div>
+                    <p class="mt-4 text-lg text-gray-600">Loading your medications...</p>
+                </div>
+                
+                <!-- Empty State -->
+                <div id="medications-empty" class="hidden py-20 text-center">
+                    <div class="mx-auto w-24 h-24 rounded-full bg-health-50 flex items-center justify-center">
+                        <svg class="w-12 h-12 text-health-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                    <h3 class="mt-6 text-xl font-medium text-gray-900">No medications found</h3>
+                    <p class="mt-2 text-gray-600 max-w-md mx-auto">Upload medical documents and create reports to extract medications.</p>
+                </div>
+                
+                <!-- Medications List -->
+                <div id="medications-container" class="hidden">
+                    <div class="mb-4">
+                        <input type="text" id="medication-search" placeholder="Search medications" class="px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent">
+                    </div>
+                    <div id="medications-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        <!-- Medication cards will be inserted here by JS -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="bg-white rounded-xl shadow-md overflow-hidden">
-    <div class="p-6">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold">Recent Documents</h2>
-            <div class="relative">
-                <input type="text" id="search-input" placeholder="Search documents" class="px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-health-500 focus:border-transparent">
-                <svg class="w-5 h-5 text-gray-400 absolute right-3 top-2.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+<!-- Report Card Template -->
+<template id="report-card-template">
+    <div class="report-card bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col h-full">
+        <div class="p-6 flex-grow">
+            <h3 class="report-title text-xl font-bold text-gray-900 mb-2"></h3>
+            <p class="report-date text-sm text-gray-500 mb-4"></p>
+            
+            <div class="flex items-center mb-4">
+                <div class="bg-health-100 text-health-800 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center">
+                    <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="report-documents"></span>
+                </div>
+                
+                <div class="bg-green-100 text-green-800 rounded-full px-3 py-1 text-xs font-medium inline-flex items-center ml-2">
+                    <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                    <span class="report-medications"></span>
+                </div>
+            </div>
+            
+            <div class="report-documents-list mt-3">
+                <h4 class="text-sm font-medium text-gray-700 mb-2">Source Documents:</h4>
+                <div class="document-badges flex flex-wrap gap-2">
+                    <!-- Document badges will be inserted here by JS -->
+                </div>
             </div>
         </div>
         
-        <div class="space-y-4 mb-6">
-            <!-- Empty state -->
-            <div id="empty-state" class="text-center py-8 text-gray-500">
-                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p>You haven't uploaded any documents yet.</p>
-                <p>Upload your first document to get started!</p>
-            </div>
-            
-            <!-- Document list container -->
-            <div id="document-list" class="hidden">
-                <!-- Document items will be added here -->
-            </div>
+        <div class="p-4 bg-gray-50 border-t border-gray-200">
+            <a href="#" class="view-report-btn inline-flex w-full items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 transition-colors duration-150 ease-in-out">
+                View Full Report
+            </a>
         </div>
     </div>
-</div>
+</template>
+
+<!-- Medication Card Template -->
+<template id="medication-card-template">
+    <div class="medication-card bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
+        <h3 class="text-lg font-semibold text-gray-900 mb-3 medication-name"></h3>
+        <div class="medication-details space-y-4">
+            <!-- Medication details will be added here by JS -->
+        </div>
+    </div>
+</template>
 
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -64,3 +256,256 @@
 
 <!-- Dashboard script -->
 <script src="/js/dashboard.js"></script>
+
+<!-- Tab Navigation Script -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Tab navigation
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // Function to switch tabs
+        function switchTab(tabId) {
+            // Toggle tabs
+            tabButtons.forEach(btn => {
+                if (btn.id === `tab-${tabId}`) {
+                    btn.classList.remove('text-gray-500', 'border-transparent');
+                    btn.classList.add('border-health-500', 'text-health-600');
+                } else {
+                    btn.classList.remove('border-health-500', 'text-health-600');
+                    btn.classList.add('text-gray-500', 'border-transparent');
+                }
+            });
+            
+            // Toggle content
+            tabContents.forEach(content => {
+                if (content.id === `${tabId}-tab`) {
+                    content.classList.remove('hidden');
+                    
+                    // Load content for the tab
+                    if (tabId === 'reports') {
+                        loadReports();
+                    } else if (tabId === 'medications') {
+                        loadMedications();
+                    }
+                } else {
+                    content.classList.add('hidden');
+                }
+            });
+            
+            // Update URL hash without triggering a hash change event
+            const newUrl = window.location.pathname + (tabId !== 'documents' ? `#${tabId}` : '');
+            history.replaceState(null, '', newUrl);
+        }
+        
+        // Handle tab button clicks
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.id.replace('tab-', '');
+                switchTab(tabId);
+            });
+        });
+        
+        // Handle URL hash changes on page load
+        function handleHashChange() {
+            // Get the hash from the URL (remove the # symbol)
+            let hash = window.location.hash.substring(1);
+            
+            // Default to documents tab if no hash or invalid hash
+            if (!hash || !['documents', 'reports', 'medications'].includes(hash)) {
+                hash = 'documents';
+            }
+            
+            // Switch to the appropriate tab
+            switchTab(hash);
+        }
+        
+        // Initial hash handling
+        handleHashChange();
+        
+        // Listen for hash changes
+        window.addEventListener('hashchange', handleHashChange);
+        
+        // Load reports function
+        async function loadReports() {
+            const reportsLoading = document.getElementById('reports-loading');
+            const reportsEmpty = document.getElementById('reports-empty');
+            const reportsContainer = document.getElementById('reports-container');
+            const reportTemplate = document.getElementById('report-card-template');
+            
+            try {
+                // Show loading state
+                reportsLoading.classList.remove('hidden');
+                reportsEmpty.classList.add('hidden');
+                reportsContainer.classList.add('hidden');
+                
+                // Fetch reports from the API
+                const response = await fetch('/api/documents/reports');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch reports');
+                }
+                
+                const data = await response.json();
+                
+                // Hide loading indicator
+                reportsLoading.classList.add('hidden');
+                
+                if (!data.success || !data.reports || data.reports.length === 0) {
+                    reportsEmpty.classList.remove('hidden');
+                    return;
+                }
+                
+                // Render reports
+                reportsContainer.innerHTML = '';
+                reportsContainer.classList.remove('hidden');
+                
+                data.reports.forEach(report => {
+                    const card = document.importNode(reportTemplate.content, true);
+                    
+                    // Set report data
+                    card.querySelector('.report-title').textContent = report.title || 'Untitled Report';
+                    
+                    // Format creation date
+                    const createdDate = new Date(report.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    card.querySelector('.report-date').textContent = `Created on ${createdDate}`;
+                    
+                    // Document count
+                    const docCount = report.sourceDocuments ? report.sourceDocuments.length : 0;
+                    card.querySelector('.report-documents').textContent = `${docCount} document${docCount !== 1 ? 's' : ''}`;
+                    
+                    // Medication count
+                    const medCount = report.medications ? report.medications.length : 0;
+                    card.querySelector('.report-medications').textContent = `${medCount} medication${medCount !== 1 ? 's' : ''}`;
+                    
+                    // Add document badges
+                    const docBadgesContainer = card.querySelector('.document-badges');
+                    if (report.documentNames && report.documentNames.length > 0) {
+                        report.documentNames.forEach(docName => {
+                            const badge = document.createElement('span');
+                            badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800';
+                            badge.textContent = docName.length > 25 ? docName.substring(0, 22) + '...' : docName;
+                            docBadgesContainer.appendChild(badge);
+                        });
+                    }
+                    
+                    // Set view link
+                    const viewBtn = card.querySelector('.view-report-btn');
+                    viewBtn.href = `/reports/${report.id}`;
+                    
+                    reportsContainer.appendChild(card);
+                });
+            } catch (error) {
+                console.error('Error loading reports:', error);
+                reportsLoading.classList.add('hidden');
+                reportsEmpty.classList.remove('hidden');
+            }
+        }
+        
+        // Load medications function
+        async function loadMedications() {
+            const medsLoading = document.getElementById('medications-loading');
+            const medsEmpty = document.getElementById('medications-empty');
+            const medsContainer = document.getElementById('medications-container');
+            const medsList = document.getElementById('medications-list');
+            const medTemplate = document.getElementById('medication-card-template');
+            
+            try {
+                // Show loading state
+                medsLoading.classList.remove('hidden');
+                medsEmpty.classList.add('hidden');
+                medsContainer.classList.add('hidden');
+                
+                // Fetch medications from API
+                const response = await fetch('/api/documents/medications');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch medications');
+                }
+                
+                const data = await response.json();
+                
+                // Hide loading indicator
+                medsLoading.classList.add('hidden');
+                
+                if (!data.success || !data.medications || data.medications.length === 0) {
+                    medsEmpty.classList.remove('hidden');
+                    return;
+                }
+                
+                // Render medications
+                medsList.innerHTML = '';
+                medsContainer.classList.remove('hidden');
+                
+                data.medications.forEach(med => {
+                    const card = document.importNode(medTemplate.content, true);
+                    
+                    // Set medication data
+                    card.querySelector('.medication-name').textContent = med.name;
+                    
+                    // Add medication details
+                    const detailsContainer = card.querySelector('.medication-details');
+                    
+                    const addDetail = (label, value) => {
+                        if (!value) return;
+                        
+                        const detailEl = document.createElement('div');
+                        detailEl.className = 'medication-detail';
+                        detailEl.innerHTML = `
+                            <span class="medication-label">${label}:</span>
+                            <span class="medication-value">${value}</span>
+                        `;
+                        detailsContainer.appendChild(detailEl);
+                    };
+                    
+                    addDetail('Dosage', med.dosage);
+                    addDetail('Frequency', med.frequency);
+                    addDetail('Purpose', med.purpose);
+                    addDetail('Instructions', med.instructions);
+                    
+                    if (med.warnings) {
+                        const warningEl = document.createElement('div');
+                        warningEl.className = 'warning-box mt-4';
+                        warningEl.innerHTML = `
+                            <div class="warning-title">
+                                <svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                </svg>
+                                <span>Important warnings</span>
+                            </div>
+                            <p class="warning-content">${med.warnings}</p>
+                        `;
+                        detailsContainer.appendChild(warningEl);
+                    }
+                    
+                    medsList.appendChild(card);
+                });
+                
+                // Setup medication search
+                const medSearch = document.getElementById('medication-search');
+                medSearch.addEventListener('input', (e) => {
+                    const query = e.target.value.toLowerCase();
+                    const cards = medsList.querySelectorAll('.medication-card');
+                    
+                    cards.forEach(card => {
+                        const name = card.querySelector('.medication-name').textContent.toLowerCase();
+                        if (name.includes(query)) {
+                            card.classList.remove('hidden');
+                        } else {
+                            card.classList.add('hidden');
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Error loading medications:', error);
+                medsLoading.classList.add('hidden');
+                medsEmpty.classList.remove('hidden');
+            }
+        }
+    });
+</script>

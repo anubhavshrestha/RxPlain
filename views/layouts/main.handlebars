@@ -6,6 +6,10 @@
     <title>{{title}}</title>
     <!-- Add Tailwind CSS via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Add SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- Add Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -36,6 +40,27 @@
         
         .btn-primary {
           @apply bg-health-600 text-white hover:bg-health-700;
+        }
+
+        /* Improved spacing for content readability */
+        .prose {
+          @apply max-w-none;
+        }
+        
+        .prose h1, .prose h2, .prose h3 {
+          @apply text-gray-900 font-bold mt-8 mb-4;
+        }
+        
+        .prose p {
+          @apply my-4 text-gray-700 leading-relaxed;
+        }
+        
+        .prose ul, .prose ol {
+          @apply my-4 pl-8;
+        }
+        
+        .prose li {
+          @apply mb-2;
         }
       }
     </style>

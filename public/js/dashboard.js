@@ -136,42 +136,131 @@ function showError(message) {
 function addDocumentToList(documentData) {
     // Create document item
     const documentItem = document.createElement('div');
-    documentItem.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg';
+    documentItem.className = 'bg-white p-4 rounded-lg shadow mb-4 animate-fade-in';
     documentItem.dataset.id = documentData.id;
-    documentItem.dataset.filename = documentData.fileName.toLowerCase();
+    documentItem.dataset.type = documentData.documentType || 'UNCLASSIFIED';
     
-    // Format date
-    const createdAt = documentData.createdAt ? new Date(documentData.createdAt) : new Date();
-    const formattedDate = createdAt.toLocaleDateString() + ' ' + createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    // Format file size
+    const fileSize = formatFileSize(documentData.fileSize);
     
-    // Set document item content
+    // Format creation date
+    const createdDate = new Date(documentData.createdAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+    });
+    
+    // Set icon based on file type
+    let fileIcon;
+    if (documentData.fileType.includes('pdf')) {
+        fileIcon = '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"></path><polyline points="14 2 14 8 20 8"></polyline><path d="M16 13H8"></path><path d="M16 17H8"></path><polyline points="10 9 9 9 8 9"></polyline>';
+    } else {
+        fileIcon = '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>';
+    }
+
+    // Set processing status indicator
+    let processingStatus = '';
+    if (documentData.isProcessed) {
+        processingStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Processed
+            </span>
+        `;
+    } else if (documentData.isProcessing) {
+        processingStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2">
+                <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing
+            </span>
+        `;
+    }
+
+    // Set document type badge
+    let documentTypeBadge = '';
+    if (documentData.documentType && documentData.documentType !== 'UNCLASSIFIED') {
+        let badgeClass = '';
+        let badgeText = '';
+        
+        switch (documentData.documentType) {
+            case 'PRESCRIPTION':
+                badgeClass = 'bg-green-100 text-green-800';
+                badgeText = 'Prescription';
+                break;
+            case 'LAB_REPORT':
+                badgeClass = 'bg-blue-100 text-blue-800';
+                badgeText = 'Lab Report';
+                break;
+            case 'CLINICAL_NOTES':
+                badgeClass = 'bg-purple-100 text-purple-800';
+                badgeText = 'Clinical Notes';
+                break;
+            case 'INSURANCE':
+                badgeClass = 'bg-yellow-100 text-yellow-800';
+                badgeText = 'Insurance';
+                break;
+            default:
+                badgeClass = 'bg-gray-100 text-gray-800';
+                badgeText = 'Miscellaneous';
+                break;
+        }
+        
+        documentTypeBadge = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium ${badgeClass} ml-2">
+                ${badgeText}
+            </span>
+        `;
+    }
+    
+    // Set document item HTML
     documentItem.innerHTML = `
-        <div class="flex items-center">
-            <svg class="w-8 h-8 text-health-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        <div class="flex items-start">
+            <div class="flex-shrink-0 mr-2">
+                <input type="checkbox" class="select-doc-checkbox h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded" data-id="${documentData.id}">
+            </div>
+            <div class="w-10 h-10 mr-4 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-6 h-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    ${fileIcon}
             </svg>
-            <div>
-                <h3 class="font-medium">${documentData.fileName}</h3>
-                <p class="text-sm text-gray-500">Uploaded on ${formattedDate}</p>
+            </div>
+            <div class="flex-grow">
+                <div class="flex items-center flex-wrap">
+                    <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
+                    ${processingStatus}
+                    ${documentTypeBadge}
+                </div>
+                <div class="text-sm text-gray-500 mt-1">
+                    ${fileSize} • Uploaded on ${createdDate}
             </div>
         </div>
         <div class="flex space-x-2">
-            <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}">
+                <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
                 <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
             </button>
-            <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}">
+                <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </button>
+                <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}" title="Download">
                 <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                 </svg>
             </button>
-            <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}">
+                <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}" title="Delete">
                 <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
             </button>
+            </div>
         </div>
     `;
     
@@ -180,12 +269,19 @@ function addDocumentToList(documentData) {
     
     // Add event listeners for buttons
     const viewBtn = documentItem.querySelector('.view-btn');
+    const simplifyBtn = documentItem.querySelector('.simplify-btn');
     const downloadBtn = documentItem.querySelector('.download-btn');
     const deleteBtn = documentItem.querySelector('.delete-btn');
+    const checkbox = documentItem.querySelector('.select-doc-checkbox');
     
     viewBtn.addEventListener('click', function() {
         const fileUrl = this.dataset.url;
         window.open(fileUrl, '_blank');
+    });
+    
+    simplifyBtn.addEventListener('click', function() {
+        const documentId = this.dataset.id;
+        simplifyDocument(documentId);
     });
     
     downloadBtn.addEventListener('click', function() {
@@ -198,6 +294,16 @@ function addDocumentToList(documentData) {
         const documentId = this.dataset.id;
         deleteDocument(documentId, documentItem);
     });
+    
+    checkbox.addEventListener('change', function() {
+        const documentId = this.dataset.id;
+        toggleDocumentSelection(documentId, this.checked);
+    });
+    
+    // Check the checkbox if the document is already selected
+    if (documentData.isSelected) {
+        checkbox.checked = true;
+    }
 }
 
 // Delete document
@@ -280,8 +386,8 @@ function setupFileUpload() {
     
     // Handle file selection
     fileInput.addEventListener('change', function() {
-        if (fileInput.files.length) {
-            handleFile(fileInput.files[0]);
+        if (this.files.length) {
+            handleFile(this.files[0]);
         }
     });
 }
@@ -430,8 +536,633 @@ function setupSearch() {
     });
 }
 
-// Initialize everything when the DOM is loaded
+// Render markdown content
+function renderMarkdown(markdown) {
+    if (!markdown) return '<p>No content available</p>';
+    
+    // Use the Marked.js library to render markdown
+    return marked.parse(markdown);
+}
+
+// Render medication list
+function renderMedicationList(medications) {
+    if (!medications || medications.length === 0) {
+        return '<p class="text-gray-600">No medications found in this document.</p>';
+    }
+    
+    let html = '<div class="space-y-4">';
+    
+    medications.forEach(med => {
+        html += `
+            <div class="bg-blue-50 p-4 rounded-lg">
+                <h3 class="text-lg font-semibold">${med.name || 'Unnamed Medication'}</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    ${med.dosage ? `<p><span class="font-medium">Dosage:</span> ${med.dosage}</p>` : ''}
+                    ${med.frequency ? `<p><span class="font-medium">Frequency:</span> ${med.frequency}</p>` : ''}
+                    ${med.purpose ? `<p><span class="font-medium">Purpose:</span> ${med.purpose}</p>` : ''}
+                </div>
+                ${med.instructions ? `<p class="mt-2"><span class="font-medium">Instructions:</span> ${med.instructions}</p>` : ''}
+                ${med.warnings ? `<p class="mt-2 text-red-600"><span class="font-medium">Warnings:</span> ${med.warnings}</p>` : ''}
+            </div>
+        `;
+    });
+    
+    html += '</div>';
+    return html;
+}
+
+// Format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Document ready handler
 document.addEventListener('DOMContentLoaded', function() {
+    // Setup event listeners and initialize dashboard
     setupFileUpload();
     setupSearch();
-}); 
+    setupCreateReportListeners();
+    
+    // Initialize the documents list when auth is ready
+    auth.onAuthStateChanged(async function(user) {
+        if (user) {
+            try {
+                await loadDocuments();
+                restoreDocumentSelections();
+            } catch (error) {
+                console.error('Error initializing dashboard:', error);
+            }
+        }
+    });
+});
+
+// Setup Create Report button
+function setupCreateReportListeners() {
+    const createReportBtn = document.getElementById('create-report-btn');
+    
+    if (createReportBtn) {
+        createReportBtn.addEventListener('click', createCombinedReport);
+    }
+    
+    // Add event delegation for document checkboxes
+    document.addEventListener('change', function(event) {
+        if (event.target && event.target.classList.contains('select-doc-checkbox')) {
+            const documentId = event.target.dataset.id;
+            const isSelected = event.target.checked;
+            
+            toggleDocumentSelection(documentId, isSelected);
+        }
+    });
+}
+
+// Restore document selections from localStorage
+function restoreDocumentSelections() {
+    try {
+        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
+        
+        if (selectedDocs.length > 0) {
+            // Find and check the checkboxes for selected documents
+            const checkboxes = document.querySelectorAll('.select-doc-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+                if (selectedDocs.includes(checkbox.dataset.id)) {
+                    checkbox.checked = true;
+                }
+            });
+            
+            // Update the selection UI
+            updateSelectedCount();
+        }
+    } catch (error) {
+        console.error('Error restoring document selections:', error);
+    }
+}
+
+// Simplify a document with Gemini AI
+async function simplifyDocument(documentId) {
+    // Find the document item in the list
+    const documentItem = document.querySelector(`div[data-id="${documentId}"]`);
+    if (!documentItem) {
+        console.error('Document item not found in DOM');
+        return;
+    }
+    
+    // Update the processing status in the UI
+    const statusElement = documentItem.querySelector('.flex.items-center');
+    if (statusElement) {
+        // Add processing indicator
+        const processingStatus = document.createElement('span');
+        processingStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
+        processingStatus.innerHTML = `
+            <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Processing
+        `;
+        
+        // Remove any existing status indicators
+        const existingStatus = statusElement.querySelector('span.inline-flex');
+        if (existingStatus) {
+            existingStatus.remove();
+        }
+        
+        // Add the new processing indicator
+        const titleElement = statusElement.querySelector('h3');
+        if (titleElement) {
+            titleElement.insertAdjacentElement('afterend', processingStatus);
+        }
+    }
+    
+    // Disable the simplify button
+    const simplifyBtn = documentItem.querySelector('.simplify-btn');
+    if (simplifyBtn) {
+        simplifyBtn.disabled = true;
+        simplifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    }
+    
+    try {
+        // Show loading indicator
+        Swal.fire({
+            title: 'Processing Document',
+            html: 'Simplifying document with Gemini AI...<br>This may take a minute or two.',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Call the API to process the document
+        const response = await fetch(`/api/documents/simplify/${documentId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to process document');
+        }
+        
+        const result = await response.json();
+        
+        // Close the loading indicator
+        Swal.close();
+        
+        if (result.success) {
+            console.log('Document processed successfully:', result);
+            
+            // Update the document in the UI to show processed status
+            const updatedStatus = document.createElement('span');
+            updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
+            updatedStatus.innerHTML = `
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Processed
+            `;
+            
+            // Replace the processing indicator with the processed status
+            const existingStatus = statusElement.querySelector('span.inline-flex');
+            if (existingStatus) {
+                existingStatus.replaceWith(updatedStatus);
+            }
+            
+            // Re-enable the simplify button
+            if (simplifyBtn) {
+                simplifyBtn.disabled = false;
+                simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+            
+            // Show the processed document
+            openProcessedDocument(result.document);
+        } else {
+            throw new Error(result.error || 'Unknown error occurred');
+        }
+    } catch (error) {
+        console.error('Error processing document:', error);
+        
+        // Update UI to show error state
+        if (statusElement) {
+            const errorStatus = document.createElement('span');
+            errorStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-800 ml-2';
+            errorStatus.innerHTML = `
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+                </svg>
+                Failed
+            `;
+            
+            // Replace the processing indicator
+            const existingStatus = statusElement.querySelector('span.inline-flex');
+            if (existingStatus) {
+                existingStatus.replaceWith(errorStatus);
+            }
+        }
+        
+        // Re-enable the simplify button
+        if (simplifyBtn) {
+            simplifyBtn.disabled = false;
+            simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+        
+        // Show error message
+        Swal.fire({
+            icon: 'error',
+            title: 'Processing Failed',
+            text: error.message || 'Failed to process document with Gemini AI',
+            confirmButtonColor: '#16a34a'
+        });
+    }
+}
+
+// Open processed document in modal
+function openProcessedDocument(doc) {
+    Swal.fire({
+        title: doc.fileName,
+        width: '80%',
+        html: `
+            <div class="mb-4 border-b border-gray-200">
+                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" role="tablist">
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-health-500 active" 
+                            id="simplified-tab" data-tabs-target="#simplified-content" type="button" role="tab" 
+                            aria-controls="simplified" aria-selected="true">Simplified</button>
+                    </li>
+                    <li class="mr-2" role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
+                            id="original-tab" data-tabs-target="#original-content" type="button" role="tab" 
+                            aria-controls="original" aria-selected="false">Original</button>
+                    </li>
+                    <li role="presentation">
+                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
+                            id="medications-tab" data-tabs-target="#medications-content" type="button" role="tab" 
+                            aria-controls="medications" aria-selected="false">Medications</button>
+                    </li>
+                </ul>
+            </div>
+            <div id="tab-content">
+                <div class="block p-4 text-left" id="simplified-content" role="tabpanel" aria-labelledby="simplified-tab">
+                    ${renderMarkdown(doc.processedContent)}
+                </div>
+                <div class="hidden p-4" id="original-content" role="tabpanel" aria-labelledby="original-tab">
+                    <iframe src="${doc.fileUrl}" width="100%" height="600" class="border"></iframe>
+                </div>
+                <div class="hidden p-4" id="medications-content" role="tabpanel" aria-labelledby="medications-tab">
+                    ${renderMedicationList(doc.medications)}
+                </div>
+            </div>
+        `,
+        showCloseButton: true,
+        showConfirmButton: false,
+        focusConfirm: false,
+        didOpen: () => {
+            // Setup tab switching
+            const tabs = document.querySelectorAll('[role="tab"]');
+            const tabContents = document.querySelectorAll('[role="tabpanel"]');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // Hide all tab contents
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                        content.classList.remove('block');
+                    });
+                    
+                    // Remove active class from all tabs
+                    tabs.forEach(t => {
+                        t.classList.remove('border-health-500');
+                        t.classList.add('border-transparent');
+                        t.setAttribute('aria-selected', 'false');
+                    });
+                    
+                    // Show the selected tab content
+                    const target = document.querySelector(tab.dataset.tabsTarget);
+                    target.classList.remove('hidden');
+                    target.classList.add('block');
+                    
+                    // Set active class on selected tab
+                    tab.classList.remove('border-transparent');
+                    tab.classList.add('border-health-500');
+                    tab.setAttribute('aria-selected', 'true');
+                });
+            });
+        }
+    });
+}
+
+// Update document selection state
+function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll('.select-doc-checkbox:checked').length;
+    const selectedCountElement = document.getElementById('selected-count');
+    const noSelectionElement = document.getElementById('no-selection');
+    const hasSelectionElement = document.getElementById('has-selection');
+    const createReportButton = document.getElementById('create-report-btn');
+    
+    if (selectedCountElement) {
+        selectedCountElement.textContent = selectedCount;
+    }
+    
+    if (noSelectionElement && hasSelectionElement) {
+        if (selectedCount > 0) {
+            noSelectionElement.classList.add('hidden');
+            hasSelectionElement.classList.remove('hidden');
+            
+            if (createReportButton) {
+                createReportButton.disabled = false;
+                createReportButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        } else {
+            noSelectionElement.classList.remove('hidden');
+            hasSelectionElement.classList.add('hidden');
+            
+            if (createReportButton) {
+                createReportButton.disabled = true;
+                createReportButton.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+        }
+    }
+}
+
+// Toggle document selection
+async function toggleDocumentSelection(documentId, isSelected) {
+    try {
+        // Update the selection state in the UI immediately
+        updateSelectedCount();
+        
+        // You can optionally save the selection state to localStorage for persistence
+        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
+        
+        if (isSelected && !selectedDocs.includes(documentId)) {
+            selectedDocs.push(documentId);
+        } else if (!isSelected && selectedDocs.includes(documentId)) {
+            const index = selectedDocs.indexOf(documentId);
+            if (index > -1) {
+                selectedDocs.splice(index, 1);
+            }
+        }
+        
+        localStorage.setItem('selectedDocs', JSON.stringify(selectedDocs));
+    } catch (error) {
+        console.error('Error updating document selection:', error);
+    }
+}
+
+// Create combined report
+async function createCombinedReport() {
+    // Get selected document IDs
+    const selectedCheckboxes = document.querySelectorAll('.select-doc-checkbox:checked');
+    const documentIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
+    
+    if (documentIds.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'No Documents Selected',
+            text: 'Please select at least one document to create a report.',
+            confirmButtonColor: '#16a34a'
+        });
+        return;
+    }
+    
+    // Show loading indication
+    const createReportBtn = document.getElementById('create-report-btn');
+    const originalBtnText = createReportBtn.innerHTML;
+    createReportBtn.disabled = true;
+    createReportBtn.classList.add('opacity-75');
+    createReportBtn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        Creating Report...
+    `;
+    
+    try {
+        // Send request to create report
+        const response = await fetch('/api/documents/create-report', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ documentIds })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to create report');
+        }
+        
+        const data = await response.json();
+        
+        if (data.success && data.report) {
+            // Success - clear selection state
+            selectedCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            
+            localStorage.removeItem('selectedDocs');
+            updateSelectedCount();
+            
+            // Show success message and redirect to the report
+            Swal.fire({
+                icon: 'success',
+                title: 'Report Created',
+                text: 'Your report has been created successfully.',
+                confirmButtonColor: '#16a34a'
+            }).then(() => {
+                // Navigate to the report after a small delay to avoid UI jank
+                setTimeout(() => {
+                    window.location.href = `/reports/${data.report.id}`;
+                }, 100);
+            });
+        } else {
+            throw new Error('Invalid response data');
+        }
+    } catch (error) {
+        console.error('Error creating report:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Failed to create report. Please try again later.',
+            confirmButtonColor: '#16a34a'
+        });
+    } finally {
+        // Reset button state
+        createReportBtn.disabled = false;
+        createReportBtn.classList.remove('opacity-75');
+        createReportBtn.innerHTML = originalBtnText;
+    }
+}
+
+// Search and filter documents
+function setupFilters() {
+    const searchInput = document.getElementById('search-input');
+    const typeFilter = document.getElementById('type-filter');
+    const statusFilter = document.getElementById('status-filter');
+    
+    if (!searchInput || !typeFilter || !statusFilter) {
+        return;
+    }
+    
+    const filterDocuments = () => {
+        const searchTerm = searchInput.value.toLowerCase();
+        const typeValue = typeFilter.value;
+        const statusValue = statusFilter.value;
+        
+        const documentItems = documentList.querySelectorAll('div[data-id]');
+        
+        let visibleCount = 0;
+        
+        documentItems.forEach(item => {
+            const fileName = item.querySelector('h3').textContent.toLowerCase();
+            const isProcessed = item.querySelector('.bg-green-100') !== null;
+            const isProcessing = item.querySelector('.bg-blue-100') !== null;
+            const documentType = item.dataset.type;
+            
+            let isVisible = true;
+            
+            // Apply search filter
+            if (searchTerm && !fileName.includes(searchTerm)) {
+                isVisible = false;
+            }
+            
+            // Apply type filter
+            if (typeValue !== 'all' && documentType !== typeValue) {
+                isVisible = false;
+            }
+            
+            // Apply status filter
+            if (statusValue === 'processed' && !isProcessed) {
+                isVisible = false;
+            } else if (statusValue === 'unprocessed' && isProcessed) {
+                isVisible = false;
+            } else if (statusValue === 'processing' && !isProcessing) {
+                isVisible = false;
+            }
+            
+            // Show/hide document item
+            if (isVisible) {
+                item.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                item.classList.add('hidden');
+            }
+        });
+        
+        // Show empty state if no documents match the filters
+        if (visibleCount === 0 && documentItems.length > 0) {
+            emptyState.classList.remove('hidden');
+            emptyState.innerHTML = `
+                <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No documents match your filters</h3>
+                <p class="mt-2 text-gray-600">Try changing your search or filter settings.</p>
+                <button id="reset-filters" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
+                    Reset Filters
+                </button>
+            `;
+            
+            // Add reset button listener
+            document.getElementById('reset-filters').addEventListener('click', () => {
+                searchInput.value = '';
+                typeFilter.value = 'all';
+                statusFilter.value = 'all';
+                filterDocuments();
+            });
+        } else if (visibleCount > 0) {
+            emptyState.classList.add('hidden');
+        }
+    };
+    
+    // Add event listeners for filters
+    searchInput.addEventListener('input', filterDocuments);
+    typeFilter.addEventListener('change', filterDocuments);
+    statusFilter.addEventListener('change', filterDocuments);
+    
+    // Return the filter function for initial call
+    return filterDocuments;
+}
+
+// Add filters and batch actions HTML to the page
+function setupFilterUI() {
+    // Add filters section to the page
+    const filtersSection = document.createElement('div');
+    filtersSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
+    filtersSection.innerHTML = `
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+            <div class="flex flex-wrap gap-2">
+                <select id="type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                    <option value="all">All Types</option>
+                    <option value="PRESCRIPTION">Prescriptions</option>
+                    <option value="LAB_REPORT">Lab Reports</option>
+                    <option value="CLINICAL_NOTES">Clinical Notes</option>
+                    <option value="INSURANCE">Insurance</option>
+                    <option value="MISCELLANEOUS">Miscellaneous</option>
+                </select>
+                <select id="status-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                    <option value="all">All Status</option>
+                    <option value="processed">Processed</option>
+                    <option value="unprocessed">Unprocessed</option>
+                    <option value="processing">Processing</option>
+                </select>
+            </div>
+            <div class="relative">
+                <input type="text" id="search-input" placeholder="Search documents..." class="pl-10 rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add batch actions section
+    const batchActionsSection = document.createElement('div');
+    batchActionsSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
+    batchActionsSection.innerHTML = `
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2">
+                <input type="checkbox" id="select-all-checkbox" class="h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded">
+                <label for="select-all-checkbox" class="text-sm text-gray-700">Select All</label>
+                <span class="text-sm text-gray-500">(<span id="selected-count">0</span> selected)</span>
+            </div>
+            <button id="create-report-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 opacity-50 cursor-not-allowed" disabled>
+                <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Create Report
+            </button>
+        </div>
+    `;
+    
+    // Insert filters and batch actions before the document list
+    documentList.parentNode.insertBefore(filtersSection, documentList);
+    documentList.parentNode.insertBefore(batchActionsSection, documentList);
+    
+    // Setup select all checkbox
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    selectAllCheckbox.addEventListener('change', function() {
+        const checkboxes = document.querySelectorAll('.select-doc-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = this.checked;
+            toggleDocumentSelection(checkbox.dataset.id, this.checked);
+        });
+        updateSelectedCount();
+    });
+    
+    // Setup create report button
+    const createReportBtn = document.getElementById('create-report-btn');
+    createReportBtn.addEventListener('click', createCombinedReport);
+    
+    // Initialize filters
+    const filterFunc = setupFilters();
+    if (filterFunc) {
+        filterFunc();
+    }
+} 

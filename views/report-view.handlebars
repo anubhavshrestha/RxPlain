@@ -1,0 +1,212 @@
+<!-- Report View Page with Modern Design -->
+<div class="container px-4 py-8 mx-auto max-w-5xl">
+    <!-- Header -->
+    <div class="mb-6 bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+        <div class="flex items-center mb-4">
+            <a href="{{dashboardUrl}}" class="text-health-600 hover:text-health-800 transition-colors duration-150 mr-3 flex items-center">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span class="ml-1">Back to Dashboard</span>
+            </a>
+        </div>
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">{{report.title}}</h1>
+                <p class="text-gray-600 mt-2">Created on {{formatDate report.createdAt}}</p>
+                
+                <div class="flex items-center mt-4 flex-wrap gap-2">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-health-100 text-health-800">
+                        <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+                        </svg>
+                        {{report.sourceDocuments.length}} document{{#if (ne report.sourceDocuments.length 1)}}s{{/if}}
+                    </span>
+                    
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M17.707 4.293a1 1 0 010 1.414l-7 7a1 1 0 01-1.414 0l-3-3a1 1 0 011.414-1.414L10 10.586l6.293-6.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                        </svg>
+                        {{report.medications.length}} medication{{#if (ne report.medications.length 1)}}s{{/if}}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="flex space-x-2 mt-4 md:mt-0">
+                <button id="print-report" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 transition-colors duration-150">
+                    <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    Print
+                </button>
+                <button id="download-report" class="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 transition-colors duration-150">
+                    <svg class="w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download PDF
+                </button>
+            </div>
+        </div>
+        
+        <div class="mt-5">
+            <h3 class="text-sm font-medium text-gray-700 mb-2">Source Documents:</h3>
+            <div class="flex flex-wrap gap-2">
+                {{#each report.documentNames}}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {{this}}
+                    </span>
+                {{/each}}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 mb-8">
+        <!-- Report Content -->
+        <div class="p-8">
+            <!-- Markdown Content with improved typography -->
+            <div class="prose prose-health max-w-none">
+                {{{markdownToHtml report.content}}}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Medications Section -->
+    {{#if report.medications}}
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Medications ({{report.medications.length}})</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {{#each report.medications}}
+                    <div class="bg-white p-6 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-200">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3 medication-name">{{this.name}}</h3>
+                        <div class="space-y-4">
+                            {{#if this.dosage}}
+                                <div class="medication-detail">
+                                    <span class="medication-label">Dosage:</span>
+                                    <span class="medication-value">{{this.dosage}}</span>
+                                </div>
+                            {{/if}}
+                            {{#if this.frequency}}
+                                <div class="medication-detail">
+                                    <span class="medication-label">Frequency:</span>
+                                    <span class="medication-value">{{this.frequency}}</span>
+                                </div>
+                            {{/if}}
+                            {{#if this.purpose}}
+                                <div class="medication-detail">
+                                    <span class="medication-label">Purpose:</span>
+                                    <span class="medication-value">{{this.purpose}}</span>
+                                </div>
+                            {{/if}}
+                            {{#if this.instructions}}
+                                <div class="medication-detail">
+                                    <span class="medication-label">Instructions:</span>
+                                    <span class="medication-value">{{this.instructions}}</span>
+                                </div>
+                            {{/if}}
+                            {{#if this.warnings}}
+                                <div class="warning-box mt-4">
+                                    <div class="warning-title">
+                                        <svg class="warning-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                                        </svg>
+                                        <span>Important warnings</span>
+                                    </div>
+                                    <p class="warning-content">{{this.warnings}}</p>
+                                </div>
+                            {{/if}}
+                        </div>
+                    </div>
+                {{/each}}
+            </div>
+        </div>
+    {{/if}}
+</div>
+
+<!-- JavaScript -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Print report
+        document.getElementById('print-report').addEventListener('click', function() {
+            window.print();
+        });
+        
+        // Download as PDF - This is a placeholder that would need to be implemented with a PDF generation library
+        document.getElementById('download-report').addEventListener('click', function() {
+            alert('This feature requires server-side PDF generation, which would be implemented in a production environment.');
+        });
+    });
+</script>
+
+<style>
+    /* Styling for the report content */
+    .prose h1 {
+        font-size: 1.875rem;
+        line-height: 2.25rem;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 2rem;
+        margin-bottom: 1rem;
+    }
+    
+    .prose h2 {
+        font-size: 1.5rem;
+        line-height: 2rem;
+        font-weight: 700;
+        color: #111827;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #e5e7eb;
+    }
+    
+    .prose h3 {
+        font-size: 1.25rem;
+        line-height: 1.75rem;
+        font-weight: 600;
+        color: #111827;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+    }
+    
+    .prose p {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        line-height: 1.75;
+        color: #374151;
+    }
+    
+    .prose ul, .prose ol {
+        margin-top: 1rem;
+        margin-bottom: 1rem;
+        padding-left: 1.5rem;
+    }
+    
+    .prose li {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+        line-height: 1.75;
+    }
+    
+    @media print {
+        header, footer, button, .bg-gray-50 {
+            display: none !important;
+        }
+        
+        body, .container, .bg-white {
+            background-color: white !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        
+        .shadow-sm, .rounded-xl, .border {
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border: none !important;
+        }
+        
+        .prose {
+            max-width: none !important;
+        }
+    }
+</style> 
