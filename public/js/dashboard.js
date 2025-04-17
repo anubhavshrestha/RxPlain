@@ -1,20 +1,6 @@
-// Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyA8TUkmdL1s_-qc_qcnZeO7mN0kz0qONCE",
-    authDomain: "rxplain.firebaseapp.com",
-    projectId: "rxplain",
-    storageBucket: "rxplain.firebasestorage.app",
-    messagingSenderId: "122430450099",
-    appId: "1:122430450099:web:be5bf161c2dc49685a43c6",
-    measurementId: "G-069YDW1QQK"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-// Initialize Firestore and Auth
-const db = firebase.firestore();
-const auth = firebase.auth();
+// Initialize Firestore and Auth variables, but defer initialization
+let db;
+let auth;
 
 // DOM elements
 const fileInput = document.getElementById('file-input');
@@ -43,48 +29,48 @@ if (navLoadingIndicator) {
 const supportedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
 const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
-// Check if user is authenticated
-auth.onAuthStateChanged(async function(user) {
-    // Show loading indicator
-    if (navLoadingIndicator) {
-        navLoadingIndicator.style.display = 'inline-block';
-    }
+// --- Function Definitions ---
 
-    if (user) {
-        try {
-            // Get the ID token
-            const idToken = await user.getIdToken();
-            
-            // Create a session
-            const response = await fetch('/api/session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ idToken })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create session');
-            }
-
-            // User is signed in and has a valid session, load their documents
-            loadDocuments();
-        } catch (error) {
-            console.error('Session creation failed:', error);
-            // Redirect to login if session creation fails
-            window.location.href = '/login';
+// Function to initialize dashboard UI elements (listeners, etc.)
+function initializeDashboardUI() {
+    setupFilterUI();
+    setupFileUpload();
+    setupSearch();
+    
+    // Initialize selectedDocuments Set from checked checkboxes (if page reloads)
+    const checkedBoxes = document.querySelectorAll('.select-doc-checkbox:checked');
+    checkedBoxes.forEach(checkbox => {
+        if (checkbox.checked && checkbox.dataset.id) {
+            selectedDocuments.add(checkbox.dataset.id);
         }
-    } else {
-        // User is signed out, redirect to login
-        window.location.href = '/login';
+    });
+    
+    // Initialize button state
+    updateSelectedCount();
+    
+    // Add event listener for the Create Report button
+    const createReportBtn = document.getElementById('create-report-btn');
+    if (createReportBtn) {
+        createReportBtn.addEventListener('click', createCombinedReport);
     }
+    
+    // Activate the correct nav item
+    // REMOVED: setActiveNavItem('/dashboard'); // This is now handled globally in firebase-client.js
+}
 
-    // Hide loading indicator
-    if (navLoadingIndicator) {
-        navLoadingIndicator.style.display = 'none';
-    }
-});
+// Function to set the active nav item - MOVED TO firebase-client.js
+/* function setActiveNavItem(path) {
+    const navLinks = document.querySelectorAll('#logged-in-nav a');
+    navLinks.forEach(link => {
+        if (link.getAttribute('href') === path) {
+            link.classList.add('bg-health-700', 'text-white');
+            link.classList.remove('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
+        } else {
+            link.classList.remove('bg-health-700', 'text-white');
+            link.classList.add('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
+        }
+    });
+} */
 
 // Load user documents from server
 async function loadDocuments() {
@@ -518,7 +504,7 @@ function setupSearch() {
         documentItems.forEach(function(item) {
             const fileName = item.dataset.filename;
             if (fileName.includes(searchTerm)) {
-                item.style.display = 'flex';
+                item.style.display = '';
                 hasVisibleItems = true;
             } else {
                 item.style.display = 'none';
@@ -526,17 +512,20 @@ function setupSearch() {
         });
         
         // Show empty state if no documents match the search
+        const currentEmptyState = document.getElementById('empty-state');
         if (!hasVisibleItems && documentItems.length > 0) {
-            emptyState.innerHTML = `
-                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <p>No documents match your search.</p>
-                <p>Try a different search term.</p>
-            `;
-            emptyState.classList.remove('hidden');
+             if (currentEmptyState) {
+                currentEmptyState.innerHTML = `
+                    <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <p>No documents match your search.</p>
+                    <p>Try a different search term.</p>
+                `;
+                currentEmptyState.classList.remove('hidden');
+             }
         } else if (hasVisibleItems) {
-            emptyState.classList.add('hidden');
+             if (currentEmptyState) currentEmptyState.classList.add('hidden');
         }
     });
 }
@@ -546,7 +535,10 @@ function renderMarkdown(markdown) {
     if (!markdown) return '<p>No content available</p>';
     
     // Use the Marked.js library to render markdown
-    return marked.parse(markdown);
+    if (typeof marked !== 'undefined') {
+        return marked.parse(markdown);
+    }
+    return '<p>Markdown renderer not available.</p>';
 }
 
 // Render medication list
@@ -585,30 +577,6 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Initialize everything when the DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    setupFilterUI();
-    setupFileUpload();
-    setupSearch();
-    
-    // Initialize selectedDocuments Set from checked checkboxes (if page reloads)
-    const checkedBoxes = document.querySelectorAll('.select-doc-checkbox:checked');
-    checkedBoxes.forEach(checkbox => {
-        if (checkbox.checked && checkbox.dataset.id) {
-            selectedDocuments.add(checkbox.dataset.id);
-        }
-    });
-    
-    // Initialize button state
-    updateSelectedCount();
-    
-    // Add event listener for the Create Report button
-    const createReportBtn = document.getElementById('create-report-btn');
-    if (createReportBtn) {
-        createReportBtn.addEventListener('click', createCombinedReport);
-    }
-});
-
 // Simplify a document with Gemini AI
 async function simplifyDocument(documentId) {
     // Find the document item in the list
@@ -619,11 +587,15 @@ async function simplifyDocument(documentId) {
     }
     
     // Update the processing status in the UI
-    const statusElement = documentItem.querySelector('.flex.items-center');
-    if (statusElement) {
+    const statusElementContainer = documentItem.querySelector('.flex-grow .flex.items-center');
+    if (statusElementContainer) {
+        // Remove any existing status indicators first
+        const existingStatuses = statusElementContainer.querySelectorAll('span.inline-flex');
+        existingStatuses.forEach(span => span.remove());
+
         // Add processing indicator
         const processingStatus = document.createElement('span');
-        processingStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
+        processingStatus.className = 'processing-indicator inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
         processingStatus.innerHTML = `
             <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -632,14 +604,8 @@ async function simplifyDocument(documentId) {
             Processing
         `;
         
-        // Remove any existing status indicators
-        const existingStatus = statusElement.querySelector('span.inline-flex');
-        if (existingStatus) {
-            existingStatus.remove();
-        }
-        
-        // Add the new processing indicator
-        const titleElement = statusElement.querySelector('h3');
+        // Add the new processing indicator after the title
+        const titleElement = statusElementContainer.querySelector('h3');
         if (titleElement) {
             titleElement.insertAdjacentElement('afterend', processingStatus);
         }
@@ -653,7 +619,7 @@ async function simplifyDocument(documentId) {
     }
     
     try {
-        // Show loading indicator
+        // Show loading indicator (SweetAlert)
         Swal.fire({
             title: 'Processing Document',
             html: 'Simplifying document with Gemini AI...<br>This may take a minute or two.',
@@ -685,20 +651,25 @@ async function simplifyDocument(documentId) {
             console.log('Document processed successfully:', result);
             
             // Update the document in the UI to show processed status
-            const updatedStatus = document.createElement('span');
-            updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
-            updatedStatus.innerHTML = `
-                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                </svg>
-                Processed
-            `;
-            
-            // Replace the processing indicator with the processed status
-            const existingStatus = statusElement.querySelector('span.inline-flex');
-            if (existingStatus) {
-                existingStatus.replaceWith(updatedStatus);
-            }
+             if (statusElementContainer) {
+                 // Remove processing indicator
+                 const processingIndicator = statusElementContainer.querySelector('.processing-indicator');
+                 if (processingIndicator) processingIndicator.remove();
+
+                const updatedStatus = document.createElement('span');
+                updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
+                updatedStatus.innerHTML = `
+                    <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    Processed
+                `;
+                // Add the new processed status indicator after the title
+                const titleElement = statusElementContainer.querySelector('h3');
+                 if (titleElement) {
+                     titleElement.insertAdjacentElement('afterend', updatedStatus);
+                 }
+             }
             
             // Re-enable the simplify button
             if (simplifyBtn) {
@@ -715,7 +686,11 @@ async function simplifyDocument(documentId) {
         console.error('Error processing document:', error);
         
         // Update UI to show error state
-        if (statusElement) {
+        if (statusElementContainer) {
+            // Remove processing indicator
+             const processingIndicator = statusElementContainer.querySelector('.processing-indicator');
+             if (processingIndicator) processingIndicator.remove();
+
             const errorStatus = document.createElement('span');
             errorStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-800 ml-2';
             errorStatus.innerHTML = `
@@ -724,12 +699,11 @@ async function simplifyDocument(documentId) {
                 </svg>
                 Failed
             `;
-            
-            // Replace the processing indicator
-            const existingStatus = statusElement.querySelector('span.inline-flex');
-            if (existingStatus) {
-                existingStatus.replaceWith(errorStatus);
-            }
+            // Add the error status indicator after the title
+            const titleElement = statusElementContainer.querySelector('h3');
+             if (titleElement) {
+                 titleElement.insertAdjacentElement('afterend', errorStatus);
+             }
         }
         
         // Re-enable the simplify button
@@ -738,7 +712,7 @@ async function simplifyDocument(documentId) {
             simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
         
-        // Show error message
+        // Show error message (SweetAlert)
         Swal.fire({
             icon: 'error',
             title: 'Processing Failed',
@@ -750,8 +724,14 @@ async function simplifyDocument(documentId) {
 
 // Open processed document in modal
 function openProcessedDocument(doc) {
+    // Ensure Swal is loaded
+    if (typeof Swal === 'undefined') {
+        console.error("SweetAlert (Swal) is not loaded.");
+        return;
+    }
+
     Swal.fire({
-        title: doc.fileName,
+        title: doc.fileName || 'Processed Document',
         width: '80%',
         html: `
             <div class="mb-4 border-b border-gray-200">
@@ -778,7 +758,7 @@ function openProcessedDocument(doc) {
                     ${renderMarkdown(doc.processedContent)}
                 </div>
                 <div class="hidden p-4" id="original-content" role="tabpanel" aria-labelledby="original-tab">
-                    <iframe src="${doc.fileUrl}" width="100%" height="600" class="border"></iframe>
+                    ${doc.fileUrl ? `<iframe src="${doc.fileUrl}" width="100%" height="600" class="border"></iframe>` : '<p>Original document preview not available.</p>'}
                 </div>
                 <div class="hidden p-4" id="medications-content" role="tabpanel" aria-labelledby="medications-tab">
                     ${renderMedicationList(doc.medications)}
@@ -790,8 +770,11 @@ function openProcessedDocument(doc) {
         focusConfirm: false,
         didOpen: () => {
             // Setup tab switching
-            const tabs = document.querySelectorAll('[role="tab"]');
-            const tabContents = document.querySelectorAll('[role="tabpanel"]');
+            const modal = Swal.getPopup();
+            if (!modal) return;
+
+            const tabs = modal.querySelectorAll('[role="tab"]');
+            const tabContents = modal.querySelectorAll('[role="tabpanel"]');
             
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => {
@@ -803,22 +786,41 @@ function openProcessedDocument(doc) {
                     
                     // Remove active class from all tabs
                     tabs.forEach(t => {
-                        t.classList.remove('border-health-500');
+                        t.classList.remove('border-health-500', 'active');
                         t.classList.add('border-transparent');
                         t.setAttribute('aria-selected', 'false');
                     });
                     
                     // Show the selected tab content
-                    const target = document.querySelector(tab.dataset.tabsTarget);
-                    target.classList.remove('hidden');
-                    target.classList.add('block');
-                    
+                    const targetId = tab.dataset.tabsTarget;
+                    if (targetId) {
+                       const target = modal.querySelector(targetId);
+                       if (target) {
+                           target.classList.remove('hidden');
+                           target.classList.add('block');
+                       }
+                    }
+
                     // Set active class on selected tab
                     tab.classList.remove('border-transparent');
-                    tab.classList.add('border-health-500');
+                    tab.classList.add('border-health-500', 'active');
                     tab.setAttribute('aria-selected', 'true');
                 });
             });
+            
+            // Ensure the default active tab content is shown
+            const defaultActiveTab = modal.querySelector('[role="tab"][aria-selected="true"]');
+             if (defaultActiveTab) {
+                 const defaultTargetId = defaultActiveTab.dataset.tabsTarget;
+                 if (defaultTargetId) {
+                     const defaultTarget = modal.querySelector(defaultTargetId);
+                     if (defaultTarget) {
+                        tabContents.forEach(content => content.classList.add('hidden'));
+                        defaultTarget.classList.remove('hidden');
+                        defaultTarget.classList.add('block');
+                     }
+                 }
+             }
         }
     });
 }
@@ -841,13 +843,15 @@ async function toggleDocumentSelection(documentId, isSelected) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
-            }
+            },
+            body: JSON.stringify({ selected: isSelected }) 
         });
         
         if (!response.ok) {
             const errorData = await response.json();
             console.error('Error updating document selection:', errorData.error);
             // Don't show visible error to user, just log it
+            // Optionally, revert UI state here if persistence fails critically
         }
     } catch (error) {
         console.error('Error toggling document selection:', error);
@@ -869,31 +873,47 @@ function updateSelectedCount() {
     const createReportBtn = document.getElementById('create-report-btn');
     if (createReportBtn) {
         if (selectedCount > 0) {
-            createReportBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            createReportBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-health-300', 'hover:bg-health-300');
             createReportBtn.classList.add('bg-health-600', 'hover:bg-health-700');
-            createReportBtn.classList.remove('bg-health-300', 'hover:bg-health-300');
             createReportBtn.removeAttribute('disabled');
         } else {
-            createReportBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            createReportBtn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-health-300', 'hover:bg-health-300');
             createReportBtn.classList.remove('bg-health-600', 'hover:bg-health-700');
-            createReportBtn.classList.add('bg-health-300', 'hover:bg-health-300');
             createReportBtn.setAttribute('disabled', 'true');
         }
+    }
+    
+    // Update select-all checkbox state
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const allDocCheckboxes = document.querySelectorAll('.select-doc-checkbox');
+    if (selectAllCheckbox && allDocCheckboxes.length > 0) {
+        selectAllCheckbox.checked = selectedCount === allDocCheckboxes.length;
+        selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < allDocCheckboxes.length;
+    } else if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false; // No documents, not checked
+        selectAllCheckbox.indeterminate = false;
     }
 }
 
 // Create a combined report from selected documents
 async function createCombinedReport() {
+    // Ensure `auth` and `Swal` are available
+    if (typeof auth === 'undefined' || !auth.currentUser) {
+        showError("Authentication error. Please log in again.");
+        return;
+    }
+    if (typeof Swal === 'undefined') {
+        showError("UI component (Swal) missing.");
+        return;
+    }
+
     try {
-        const selectedCheckboxes = document.querySelectorAll('.select-doc-checkbox:checked');
+        const selectedIds = Array.from(selectedDocuments); // Use the Set directly
         
-        if (selectedCheckboxes.length === 0) {
+        if (selectedIds.length === 0) {
             showError('Please select at least one document to create a report.');
             return;
         }
-        
-        // Get selected document IDs
-        const documentIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
         
         // Show loading indicator
         Swal.fire({
@@ -911,7 +931,7 @@ async function createCombinedReport() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ documentIds })
+            body: JSON.stringify({ documentIds: selectedIds }) // Send the IDs from the Set
         });
         
         if (!response.ok) {
@@ -931,49 +951,51 @@ async function createCombinedReport() {
                     icon: 'success',
                     title: 'Report Created!',
                     text: 'Your combined report has been created and is ready to view.',
-                    timer: 2000,
+                    timer: 2000, // Auto-close after 2 seconds
                     showConfirmButton: false
                 }).then(() => {
                     // Navigate to the report page
                     window.location.href = result.redirectUrl;
                 });
             } else if (result.report && result.report.id) {
-                Swal.fire({
+                // If only report ID is returned
+                 Swal.fire({
                     icon: 'success',
                     title: 'Report Created',
                     text: 'Your combined report has been created successfully.',
                     showCancelButton: true,
                     confirmButtonText: 'View Report',
                     cancelButtonText: 'Close',
-                    confirmButtonColor: '#15803d',
-                }).then((result) => {
-                    if (result.isConfirmed && result.report && result.report.id) {
-                        // Redirect to the report page
+                    confirmButtonColor: '#15803d', // Your theme color
+                }).then((swalResult) => { // Rename inner variable to avoid conflict
+                    if (swalResult.isConfirmed) {
+                        // Redirect to the report page using the ID from the API response
                         window.location.href = `/reports/${result.report.id}`;
                     }
                 });
             } else {
-                // Fallback if no report ID or redirect URL provided
+                // Fallback if neither report ID nor redirect URL is provided
                 Swal.fire({
                     icon: 'success',
                     title: 'Report Created',
                     text: 'Your combined report has been created. Visit the Reports page to view it.',
                     confirmButtonText: 'Go to Reports',
-                    confirmButtonColor: '#15803d',
+                    confirmButtonColor: '#15803d', // Your theme color
                 }).then(() => {
-                    window.location.href = '/reports';
+                    window.location.href = '/reports'; // Redirect to the general reports list
                 });
             }
             
-            // Uncheck all checkboxes
-            selectedCheckboxes.forEach(checkbox => {
-                checkbox.checked = false;
-            });
+            // Uncheck all document checkboxes visually
+             const allDocCheckboxes = document.querySelectorAll('.select-doc-checkbox');
+             allDocCheckboxes.forEach(checkbox => {
+                 checkbox.checked = false;
+             });
             
-            // Clear selected documents
+            // Clear selected documents Set
             selectedDocuments.clear();
             
-            // Update selected count
+            // Update selected count and button state
             updateSelectedCount();
         } else {
             throw new Error(result.error || 'Failed to create combined report');
@@ -981,11 +1003,14 @@ async function createCombinedReport() {
     } catch (error) {
         console.error('Error creating combined report:', error);
         
+         // Close loading Swal if it's still open due to error
+         Swal.close(); 
+
         Swal.fire({
             icon: 'error',
             title: 'Report Creation Failed',
             text: error.message || 'Failed to create combined report. Please try again.',
-            confirmButtonColor: '#15803d'
+            confirmButtonColor: '#15803d' // Your theme color
         });
     }
 }
@@ -996,8 +1021,10 @@ function setupFilters() {
     const typeFilter = document.getElementById('type-filter');
     const statusFilter = document.getElementById('status-filter');
     
-    if (!searchInput || !typeFilter || !statusFilter) {
-        return;
+    // Ensure elements exist before adding listeners
+    if (!searchInput || !typeFilter || !statusFilter || !documentList) {
+        console.warn("Filter elements or document list not found. Skipping filter setup.");
+        return null; // Return null or undefined to indicate failure
     }
     
     const filterDocuments = () => {
@@ -1005,69 +1032,85 @@ function setupFilters() {
         const typeValue = typeFilter.value;
         const statusValue = statusFilter.value;
         
-        const documentItems = documentList.querySelectorAll('div[data-id]');
+        const documentItems = documentList.querySelectorAll('div[data-id]'); // Get all document items
         
         let visibleCount = 0;
         
         documentItems.forEach(item => {
-            const fileName = item.querySelector('h3').textContent.toLowerCase();
-            const isProcessed = item.querySelector('.bg-green-100') !== null;
-            const isProcessing = item.querySelector('.bg-blue-100') !== null;
-            const documentType = item.dataset.type;
+            const fileName = item.querySelector('h3')?.textContent.toLowerCase() || '';
+            const isProcessed = item.querySelector('.bg-green-100') !== null; // Check for processed badge
+            const isProcessing = item.querySelector('.bg-blue-100.processing-indicator') !== null; // Check for processing indicator specifically
+            const documentType = item.dataset.type || 'UNCLASSIFIED';
             
             let isVisible = true;
             
-            // Apply search filter
+            // Apply search filter (check filename)
             if (searchTerm && !fileName.includes(searchTerm)) {
                 isVisible = false;
             }
             
             // Apply type filter
-            if (typeValue !== 'all' && documentType !== typeValue) {
+            if (isVisible && typeValue !== 'all' && documentType !== typeValue) {
                 isVisible = false;
             }
             
             // Apply status filter
-            if (statusValue === 'processed' && !isProcessed) {
-                isVisible = false;
-            } else if (statusValue === 'unprocessed' && isProcessed) {
-                isVisible = false;
-            } else if (statusValue === 'processing' && !isProcessing) {
-                isVisible = false;
+            if (isVisible && statusValue !== 'all') {
+                if (statusValue === 'processed' && !isProcessed) {
+                    isVisible = false;
+                } else if (statusValue === 'processing' && !isProcessing) {
+                     isVisible = false;
+                } else if (statusValue === 'unprocessed' && (isProcessed || isProcessing)) {
+                    // Unprocessed means neither processed nor currently processing
+                    isVisible = false;
+                }
             }
             
             // Show/hide document item
             if (isVisible) {
                 item.classList.remove('hidden');
+                item.style.display = ''; // Reset display style if previously set to none
                 visibleCount++;
             } else {
                 item.classList.add('hidden');
+                item.style.display = 'none'; // Explicitly hide
             }
         });
         
         // Show empty state if no documents match the filters
-        if (visibleCount === 0 && documentItems.length > 0) {
-            emptyState.classList.remove('hidden');
-            emptyState.innerHTML = `
-                <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-                <h3 class="mt-4 text-lg font-medium text-gray-900">No documents match your filters</h3>
-                <p class="mt-2 text-gray-600">Try changing your search or filter settings.</p>
-                <button id="reset-filters" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
-                    Reset Filters
-                </button>
-            `;
-            
-            // Add reset button listener
-            document.getElementById('reset-filters').addEventListener('click', () => {
-                searchInput.value = '';
-                typeFilter.value = 'all';
-                statusFilter.value = 'all';
-                filterDocuments();
-            });
-        } else if (visibleCount > 0) {
-            emptyState.classList.add('hidden');
+        const currentEmptyState = document.getElementById('empty-state'); // Re-get element
+        if (currentEmptyState) {
+           if (visibleCount === 0 && documentItems.length > 0) {
+               currentEmptyState.classList.remove('hidden');
+               // Check if reset button already exists to avoid duplicates
+               if (!currentEmptyState.querySelector('#reset-filters')) {
+                   currentEmptyState.innerHTML = `
+                       <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                       </svg>
+                       <h3 class="mt-4 text-lg font-medium text-gray-900">No documents match your filters</h3>
+                       <p class="mt-2 text-gray-600">Try changing your search or filter settings.</p>
+                       <button id="reset-filters" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
+                           Reset Filters
+                       </button>
+                   `;
+                   
+                   // Add reset button listener inside the condition where it's created
+                   const resetButton = currentEmptyState.querySelector('#reset-filters');
+                   if (resetButton) {
+                      resetButton.addEventListener('click', () => {
+                           searchInput.value = '';
+                           typeFilter.value = 'all';
+                           statusFilter.value = 'all';
+                           filterDocuments(); // Re-apply filters after resetting
+                       });
+                   }
+               }
+           } else if (visibleCount > 0 || documentItems.length === 0) {
+               // Hide empty state if items are visible OR if there were never any items
+               currentEmptyState.classList.add('hidden');
+               currentEmptyState.innerHTML = ''; // Clear previous message
+           }
         }
     };
     
@@ -1076,31 +1119,52 @@ function setupFilters() {
     typeFilter.addEventListener('change', filterDocuments);
     statusFilter.addEventListener('change', filterDocuments);
     
-    // Return the filter function for initial call
+    // Return the filter function so it can be called initially
     return filterDocuments;
 }
 
 // Add filters and batch actions HTML to the page
 function setupFilterUI() {
+    // Ensure documentList exists before trying to insert elements relative to it
+    if (!documentList || !documentList.parentNode) {
+        console.error("Document list container not found. Cannot set up filter UI.");
+        return;
+    }
+
+    // Check if filters/actions already exist to prevent duplicates on hot-reload/navigation
+    if (document.getElementById('type-filter') || document.getElementById('select-all-checkbox')) {
+        console.log("Filter/Action UI already exists. Skipping setup.");
+        return;
+    }
+
     // Add filters section to the page
     const filtersSection = document.createElement('div');
     filtersSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
     filtersSection.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+             <div class="relative flex-grow md:flex-grow-0 md:mr-4">
+                 <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                     <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                       <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                     </svg>
+                 </span>
+                 <input type="text" id="search-input" placeholder="Search documents..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-health-500 focus:border-health-500 sm:text-sm">
+             </div>
             <div class="flex flex-wrap gap-2">
-                <select id="type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                <select id="type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 text-sm">
                     <option value="all">All Types</option>
                     <option value="PRESCRIPTION">Prescriptions</option>
                     <option value="LAB_REPORT">Lab Reports</option>
                     <option value="CLINICAL_NOTES">Clinical Notes</option>
                     <option value="INSURANCE">Insurance</option>
                     <option value="MISCELLANEOUS">Miscellaneous</option>
+                    <option value="UNCLASSIFIED">Unclassified</option> 
                 </select>
-                <select id="status-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                <select id="status-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 text-sm">
                     <option value="all">All Status</option>
                     <option value="processed">Processed</option>
-                    <option value="unprocessed">Unprocessed</option>
                     <option value="processing">Processing</option>
+                    <option value="unprocessed">Unprocessed</option>
                 </select>
             </div>
         </div>
@@ -1108,12 +1172,13 @@ function setupFilterUI() {
     
     // Add batch actions section
     const batchActionsSection = document.createElement('div');
+    batchActionsSection.id = 'batch-actions-section'; // Give it an ID
     batchActionsSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
     batchActionsSection.innerHTML = `
         <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-3">
                 <input type="checkbox" id="select-all-checkbox" class="h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded">
-                <label for="select-all-checkbox" class="text-sm text-gray-700">Select All</label>
+                <label for="select-all-checkbox" class="text-sm text-gray-700 select-none">Select All</label>
                 <span class="text-sm text-gray-500">(<span id="selected-count">0</span> selected)</span>
             </div>
             <button id="create-report-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 opacity-50 cursor-not-allowed" disabled>
@@ -1129,24 +1194,128 @@ function setupFilterUI() {
     documentList.parentNode.insertBefore(filtersSection, documentList);
     documentList.parentNode.insertBefore(batchActionsSection, documentList);
     
-    // Setup select all checkbox
+    // Setup select all checkbox listener
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
-    selectAllCheckbox.addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.select-doc-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
-            toggleDocumentSelection(checkbox.dataset.id, this.checked);
-        });
-        updateSelectedCount();
-    });
+    if (selectAllCheckbox) {
+       selectAllCheckbox.addEventListener('change', function() {
+           const isChecked = this.checked;
+           // Select only currently visible documents if filters are applied
+           const visibleCheckboxes = documentList.querySelectorAll('div[data-id]:not(.hidden) .select-doc-checkbox'); 
+           
+           visibleCheckboxes.forEach(checkbox => {
+               if (checkbox.checked !== isChecked) { // Only toggle if state is different
+                  checkbox.checked = isChecked;
+                  // Trigger the toggle function to update the Set and potentially the backend
+                  toggleDocumentSelection(checkbox.dataset.id, isChecked); 
+               }
+           });
+           // Update count after potentially changing multiple selections
+           updateSelectedCount(); 
+       });
+    }
     
-    // Setup create report button
+    // Setup create report button listener (already done in initializeDashboardUI, but ensure element exists)
     const createReportBtn = document.getElementById('create-report-btn');
-    createReportBtn.addEventListener('click', createCombinedReport);
+    if (createReportBtn && !createReportBtn.getAttribute('listener-added')) { // Prevent adding multiple listeners
+       createReportBtn.addEventListener('click', createCombinedReport);
+       createReportBtn.setAttribute('listener-added', 'true');
+    }
     
-    // Initialize filters
+    // Initialize filters and get the filter function
     const filterFunc = setupFilters();
+    // Apply initial filtering if the function was returned successfully
     if (filterFunc) {
         filterFunc();
     }
+}
+
+// --- Main Execution Logic ---
+
+// This function contains the core logic that depends on Firebase
+async function startDashboard() {
+    console.log("Firebase initialized, starting dashboard logic.");
+    // Now that Firebase is initialized, get the instances
+    // Use firebase.app().firestore() and firebase.app().auth() for clarity
+    const app = firebase.app(); // Get the default initialized app
+    db = app.firestore();
+    auth = app.auth();
+
+    // Check if user is authenticated
+    auth.onAuthStateChanged(async function(user) {
+        // Show loading indicator
+        if (navLoadingIndicator) {
+            navLoadingIndicator.style.display = 'inline-block';
+        }
+
+        if (user) {
+            try {
+                // Get the ID token
+                const idToken = await user.getIdToken();
+                
+                // Create a session (optional, depends if backend needs it for every action)
+                // Consider if this fetch is necessary on every auth state change
+                const response = await fetch('/api/session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idToken })
+                });
+
+                if (!response.ok) {
+                    console.warn('Failed to refresh session:', response.statusText);
+                    // Decide if this is critical. Maybe just log it?
+                    // throw new Error('Failed to create session'); 
+                }
+
+                // User is signed in, load their documents
+                await loadDocuments(); // Wait for documents to load initially
+                
+                // Initialize UI elements that depend on documents being loaded or auth state
+                initializeDashboardUI(); 
+
+            } catch (error) {
+                console.error('Error during authenticated setup:', error);
+                showError("Error loading your data. Please try refreshing.");
+                // Redirect to login only if session creation is absolutely critical and failed
+                 if (error.message.includes('Failed to create session')) {
+                     window.location.href = '/login';
+                 }
+            }
+        } else {
+            // User is signed out, redirect to login
+            console.log("User signed out, redirecting to login.");
+            window.location.href = '/login';
+        }
+
+        // Hide loading indicator (might need adjustment based on async operations)
+        if (navLoadingIndicator) {
+            navLoadingIndicator.style.display = 'none';
+        }
+    });
+
+    // Note: initializeDashboardUI() is now called *after* initial loadDocuments within onAuthStateChanged
+    // This ensures UI setup happens after the first data load for an authenticated user.
+}
+
+// Wait for Firebase to be initialized before starting dashboard logic
+// Check if the promise exists first
+if (window.firebaseInitializationPromise) {
+     window.firebaseInitializationPromise
+         .then(startDashboard) // Run the main dashboard logic after Firebase initializes
+         .catch(error => {
+             console.error("Firebase initialization failed:", error);
+             // Display error to the user
+             const errorDiv = document.getElementById('error-message') || document.body; // Fallback
+             errorDiv.textContent = "Application could not initialize due to a Firebase error. Please try refreshing the page.";
+             errorDiv.classList.remove('hidden'); 
+             // Consider disabling UI elements if needed
+         });
+} else {
+     // This case should ideally not happen if scripts load correctly
+     console.error("Firebase initialization promise not found. Ensure firebase-client.js loads before dashboard.js.");
+     // Display a critical error
+     const errorDiv = document.getElementById('error-message') || document.body;
+     errorDiv.textContent = "A critical application file (firebase-client.js) failed to load correctly. Please refresh the page or contact support.";
+     errorDiv.classList.remove('hidden');
 } 

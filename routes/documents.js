@@ -335,61 +335,50 @@ router.get('/reports', isAuthenticated, async (req, res) => {
   console.log('API route /reports hit, user ID:', req.user.uid);
   try {
     const userId = req.user.uid;
+
+    // Get user's report IDs -- **REMOVED - No longer fetching user doc just for IDs**
+    // console.log('Fetching user doc for reports');
+    // const userDoc = await db.collection('users').doc(userId).get();
+    // console.log('User doc exists:', userDoc.exists);
+    // const userData = userDoc.data();
+    // console.log('User data:', userData);
+    // const reportIds = userData.reports || [];
+    // console.log('Report IDs found:', reportIds.length, reportIds);
+    // if (reportIds.length === 0) {
+    //   console.log('No reports found, returning empty array');
+    //   res.set('Cache-Control', 'private, max-age=3600');
+    //   return res.status(200).json({ success: true, reports: [] });
+    // }
+
+    // Get report details by querying the reports collection directly
+    console.log('Fetching reports for user:', userId);
+    const reportsSnapshot = await db.collection('reports')
+                                    .where('userId', '==', userId)
+                                    .orderBy('createdAt', 'desc') // Order by creation date (newest first)
+                                    .get();
     
-    // Get user's report IDs
-    console.log('Fetching user doc for reports');
-    const userDoc = await db.collection('users').doc(userId).get();
-    console.log('User doc exists:', userDoc.exists);
-    const userData = userDoc.data();
-    console.log('User data:', userData);
-    
-    const reportIds = userData.reports || [];
-    console.log('Report IDs found:', reportIds.length, reportIds);
-    
-    if (reportIds.length === 0) {
-      console.log('No reports found, returning empty array');
-      
-      // Set cache control headers even for empty results
-      res.set('Cache-Control', 'private, max-age=3600');
-      
-      return res.status(200).json({ 
-        success: true,
-        reports: [] 
-      });
-    }
-    
-    // Get report details
-    console.log('Fetching report details');
     const reports = [];
-    for (const reportId of reportIds) {
-      console.log('Fetching report:', reportId);
-      const reportSnapshot = await db.collection('reports').doc(reportId).get();
-      console.log('Report exists:', reportSnapshot.exists);
-      if (reportSnapshot.exists) {
-        const report = reportSnapshot.data();
-        
-        // Convert Firestore timestamps to ISO strings
-        if (report.createdAt) {
-          report.createdAt = report.createdAt.toDate().toISOString();
-        }
-        
-        reports.push(report);
-      }
+    if (!reportsSnapshot.empty) {
+        reportsSnapshot.forEach(doc => {
+            const report = doc.data();
+            // Convert Firestore timestamps to ISO strings
+            if (report.createdAt) {
+              report.createdAt = report.createdAt.toDate().toISOString();
+            }
+            reports.push(report);
+        });
     }
-    
-    // Sort reports by creation date (newest first)
-    reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
     console.log('Returning reports:', reports.length);
-    
+
     // Set cache control headers to improve performance
-    // Private ensures the response is not cached by shared caches (CDNs, proxies)
-    // max-age is set to 1 hour (3600 seconds)
     res.set('Cache-Control', 'private, max-age=3600');
-    
+
     return res.status(200).json({
       success: true,
       reports: reports
     });
+
   } catch (error) {
     console.error('Error fetching user reports:', error);
     console.error('Error stack:', error.stack);

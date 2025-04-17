@@ -84,9 +84,10 @@
 </div>
 
 <!-- Firebase SDK -->
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<!-- These are now loaded in main.handlebars <head> -->
+<!-- <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script> -->
+<!-- <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script> -->
+<!-- <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script> -->
 
-<!-- Dashboard script -->
-<script src="/js/dashboard.js"></script>
+<!-- Dashboard script (defer ensures it runs after firebase-client.js) -->
+<script defer src="/js/dashboard.js"></script>

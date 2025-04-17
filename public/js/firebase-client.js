@@ -3,6 +3,11 @@
 // Your web app's Firebase configuration from the server
 let firebaseConfig;
 
+// Promise to signal Firebase initialization completion
+window.firebaseInitializationPromise = new Promise((resolve) => {
+  window.resolveFirebaseInitialization = resolve;
+});
+
 // Fetch the Firebase config from the server
 async function fetchFirebaseConfig() {
   const response = await fetch('/api/firebase-config');
@@ -14,6 +19,9 @@ async function fetchFirebaseConfig() {
 function initializeFirebase() {
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
+
+  // Signal that Firebase is initialized
+  window.resolveFirebaseInitialization();
 
   // Show loading state
   const authLoading = document.getElementById('auth-loading');
@@ -215,6 +223,38 @@ function initializeFirebase() {
       console.error('Error fetching profile:', error);
     }
   };
+
+  // Function to set the active nav item globally
+  function setActiveNavItem(path) {
+    const navLinks = document.querySelectorAll('#logged-in-nav a'); // Target links within the logged-in nav
+    
+    // Define standard classes
+    const activeClasses = ['bg-health-700', 'text-white']; // Classes for the active link
+    const inactiveClasses = ['text-gray-300', 'hover:bg-health-700', 'hover:text-white']; // Classes for inactive links
+
+    navLinks.forEach(link => {
+        const linkPath = link.getAttribute('href');
+        // Basic path matching (consider more robust matching if needed, e.g., for sub-paths)
+        if (linkPath === path) {
+            link.classList.add(...activeClasses);
+            link.classList.remove(...inactiveClasses);
+        } else {
+            link.classList.remove(...activeClasses);
+            link.classList.add(...inactiveClasses);
+        }
+    });
+  }
+
+  // Ensure DOM is ready and call setActiveNavItem
+  function initializeGlobalUI() {
+     if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setActiveNavItem(window.location.pathname));
+     } else {
+        setActiveNavItem(window.location.pathname);
+     }
+  }
+
+  initializeGlobalUI(); // Call this function after defining it
 }
 
 // Initialize on page load
