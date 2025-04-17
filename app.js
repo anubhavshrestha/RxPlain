@@ -213,6 +213,14 @@ app.get('/reports/:reportId', isAuthenticated, async (req, res) => {
       });
     }
     
+    // Convert timestamps for display
+    if (reportData.createdAt) {
+      reportData.createdAt = reportData.createdAt.toDate().toISOString();
+    }
+    
+    // Add a flag to indicate this is a fresh load (not from cache)
+    reportData.freshLoad = true;
+    
     // Render the report view page
     res.render('report-view', { 
       title: `${reportData.title} - RxPlain`,

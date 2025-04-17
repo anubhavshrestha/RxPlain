@@ -348,6 +348,10 @@ router.get('/reports', isAuthenticated, async (req, res) => {
     
     if (reportIds.length === 0) {
       console.log('No reports found, returning empty array');
+      
+      // Set cache control headers even for empty results
+      res.set('Cache-Control', 'private, max-age=3600');
+      
       return res.status(200).json({ 
         success: true,
         reports: [] 
@@ -376,6 +380,11 @@ router.get('/reports', isAuthenticated, async (req, res) => {
     // Sort reports by creation date (newest first)
     reports.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     console.log('Returning reports:', reports.length);
+    
+    // Set cache control headers to improve performance
+    // Private ensures the response is not cached by shared caches (CDNs, proxies)
+    // max-age is set to 1 hour (3600 seconds)
+    res.set('Cache-Control', 'private, max-age=3600');
     
     return res.status(200).json({
       success: true,
@@ -415,6 +424,11 @@ router.get('/reports/:reportId', isAuthenticated, async (req, res) => {
     if (reportData.createdAt) {
       reportData.createdAt = reportData.createdAt.toDate().toISOString();
     }
+    
+    // Set cache control headers to improve performance
+    // Private ensures the response is not cached by shared caches (CDNs, proxies)
+    // max-age is set to 1 hour (3600 seconds)
+    res.set('Cache-Control', 'private, max-age=3600');
     
     return res.status(200).json({
       success: true,
