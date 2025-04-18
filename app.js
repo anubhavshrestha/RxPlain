@@ -26,6 +26,14 @@ const __dirname = path.dirname(__filename);
 // Initialize app
 const app = express();
 
+// --- Logging Middleware --- 
+app.use((req, res, next) => {
+  console.log(`[Request Logger] Received request: ${req.method} ${req.originalUrl}`);
+  // Log headers if needed for deep debugging: console.log('[Request Logger] Headers:', req.headers);
+  next();
+});
+// --- End Logging Middleware ---
+
 // Middleware
 app.use(morgan('dev'));
 app.use(bodyParser.json());
@@ -81,6 +89,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/documents', documentRoutes);
+console.log('[App Setup] Mounted documentRoutes under /api/documents'); // Log mounting
 app.use('/api/users', userRoutes);
 
 // Public Routes
@@ -131,6 +140,8 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
 
 app.get('/medications', isAuthenticated, async (req, res) => {
   try {
+    console.log(`[App Route] Rendering /medications page for user: ${req.user?.uid}`);
+
     // Get user data from Firestore
     const userDoc = await db.collection('users').doc(req.user.uid).get();
     

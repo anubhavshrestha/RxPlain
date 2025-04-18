@@ -790,12 +790,31 @@ function renderMedicationList(medications) {
     let html = '<div class="space-y-6 divide-y divide-gray-200 px-1">'; // Added padding and divider
 
     medications.forEach((med, index) => {
-        const medName = med.Name?.Generic || med.Name?.Brand || 'Unnamed Medication';
+        // --- Updated Fallback Logic --- 
+        let medName = med.Name?.Generic || med.Name?.Brand;
+        let isNameExtracted = !!medName; // Flag to know if we found a real extracted name
+
+        if (!isNameExtracted) {
+            if (med.SuggestedName) { // Check for AI Suggested Name first
+                medName = med.SuggestedName;
+            } else if (med.Purpose) { // Then check Purpose
+                // Truncate purpose and use as fallback
+                const truncatedPurpose = med.Purpose.length > 40 ? med.Purpose.substring(0, 40) + '...' : med.Purpose;
+                medName = `Medication (Purpose: ${truncatedPurpose})`;
+            } else { // Finally, use numbered entry
+                // Numbered fallback if no name or purpose
+                medName = `Medication Entry #${index + 1}`;
+            }
+        }
+        // --- End Updated Fallback Logic --- 
+
+        // Apply italic style if the name was NOT specifically extracted (Generic/Brand)
+        const nameStyleClass = isNameExtracted ? 'text-blue-800' : 'text-blue-700 italic'; 
 
         // Use <dl> for better structure and spacing
         html += `
             <div class="pt-4 ${index === 0 ? 'pb-4' : 'py-4'}"> 
-                <h3 class="text-xl font-semibold mb-3 text-blue-800">${medName}</h3>
+                <h3 class="text-xl font-semibold mb-3 ${nameStyleClass}">${medName}</h3>
                 <dl class="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-6">
                     ${med.Dosage ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Dosage:</dt> <dd class="mt-1 text-gray-800">${med.Dosage}</dd></div>` : ''}
                     ${med.Frequency ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Frequency:</dt> <dd class="mt-1 text-gray-800">${med.Frequency}</dd></div>` : ''}

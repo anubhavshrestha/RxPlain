@@ -233,22 +233,43 @@ export class GeminiDocumentProcessor {
             const docResult = await this.model.generateContent(docPrompt);
             const docMarkdown = docResult.response.text();
             
-            // Prompt for medication extraction
+            // Prompt for medication extraction - ENHANCED
             const medPrompt = `
                 Extract a comprehensive list of ALL medications mentioned in the following medical document.
-                For each medication, provide:
-                1. Name (both brand and generic if available)
-                2. Dosage
-                3. Frequency
-                4. Purpose (in patient-friendly terms - what symptom or condition it treats)
-                5. Special instructions in simple language
-                6. Important side effects to watch for (only the most common or serious ones)
+                For each medication, provide the following information as a JSON object:
                 
-                Format as a JSON array of medication objects with these properties.
-                If no medications are mentioned, return an empty array.
-                
-                Focus on making the information practical and understandable to someone with no medical background.
-                
+                1.  Name: An object containing:
+                    *   Generic: The generic name (e.g., "Metformin"). Provide null if not found.
+                    *   Brand: The brand name (e.g., "Glucophage"). Provide null if not found.
+                2.  SuggestedName: IF AND ONLY IF both Generic and Brand names are null, provide a short, descriptive fallback name based on the medication's apparent use or type (e.g., "Pain Reliever", "Blood Pressure Pill", "Iron Supplement"). Otherwise, this field should be null or omitted.
+                3.  Dosage: Dosage strength and form (e.g., "500mg tablet", "1 spray"). Provide null if not found.
+                4.  Frequency: How often to take it (e.g., "Once daily", "Twice a day"). Provide null if not found.
+                5.  Purpose: Briefly explain what symptom or condition it treats in patient-friendly terms. Provide null if not found.
+                6.  Special Instructions: Extract any specific instructions like "Take with food", "Avoid alcohol", in simple language. 
+                    *   If instructions are found in the document: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific instructions ARE NOT found in the document: Check your general knowledge for this medication. If common/important standard instructions exist (e.g., "Take levothyroxine on an empty stomach"), provide them as a string AND add a field "isGeneralKnowledgeInstructions: true". 
+                    *   Otherwise, provide null.
+                7.  Important Side Effects: List serious or common side effects/warnings mentioned in the document.
+                    *   If side effects/warnings are found in the document: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific side effects/warnings ARE NOT found in the document: Check your general knowledge for this medication. If well-known common or important side effects exist (e.g., "Metformin may cause digestive upset"), list 1-3 key ones as a string AND add a field "isGeneralKnowledgeSideEffects: true".
+                    *   Otherwise, provide null.
+
+                Format the final output strictly as a JSON array containing these medication objects. Ensure all fields (e.g., "isGeneralKnowledgeInstructions") are included, set to "true" or "false"/"null" as appropriate.
+                Make sure the output is ONLY the JSON array and nothing else before or after it.
+                Example of one object in the array (ensure valid JSON format in output):
+                {
+                  "Name": { "Generic": "Levothyroxine", "Brand": null },
+                  "SuggestedName": null,
+                  "Dosage": "137 mcg",
+                  "Frequency": "Once daily",
+                  "Purpose": "Treats low thyroid hormone levels",
+                  "Special Instructions": "Take on empty stomach 30-60 minutes before breakfast.",
+                  "isGeneralKnowledgeInstructions": true,
+                  "Important Side Effects": "Hair loss, weight changes, irregular heartbeat.",
+                  "isGeneralKnowledgeSideEffects": true 
+                }
+                If no medications are mentioned, return an empty JSON array [].
+
                 The document content is:
                 ${text}
             `;
@@ -303,7 +324,43 @@ export class GeminiDocumentProcessor {
             
             const contentPrompt = "Simplify this medical document for a patient with no medical background. Transform complex medical information into clear, actionable insights anyone can understand. Format your response with these sections: # What This Means For You, # Key Actions, # Important Information, # Health Terms Simplified. Write at a 6th-grade reading level with short sentences and simple words. Focus on practical information, not technical details.";
             
-            const medPrompt = "Extract a list of ALL medications visible in this medical document image. For each medication, provide: Name (brand and generic if available), Dosage, Frequency, Purpose (in patient-friendly terms), Special instructions in simple language, Important side effects to watch for (only common or serious ones). Format as a JSON array. Focus on making information practical and understandable to someone with no medical background.";
+            // Prompt for medication extraction - ENHANCED
+            const medPrompt = `
+                Extract a comprehensive list of ALL medications visible in this medical document image.
+                For each medication, provide the following information as a JSON object:
+                
+                1.  Name: An object containing:
+                    *   Generic: The generic name (e.g., "Metformin"). Provide null if not found.
+                    *   Brand: The brand name (e.g., "Glucophage"). Provide null if not found.
+                2.  SuggestedName: IF AND ONLY IF both Generic and Brand names are null, provide a short, descriptive fallback name based on the medication's apparent use or type (e.g., "Pain Reliever", "Blood Pressure Pill", "Iron Supplement"). Otherwise, this field should be null or omitted.
+                3.  Dosage: Dosage strength and form (e.g., "500mg tablet", "1 spray"). Provide null if not found.
+                4.  Frequency: How often to take it (e.g., "Once daily", "Twice a day"). Provide null if not found.
+                5.  Purpose: Briefly explain what symptom or condition it treats in patient-friendly terms. Provide null if not found.
+                6.  Special Instructions: Extract any specific instructions like "Take with food", "Avoid alcohol", in simple language. 
+                    *   If instructions are found in the image: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific instructions ARE NOT found in the image: Check your general knowledge for this medication. If common/important standard instructions exist (e.g., "Take levothyroxine on an empty stomach"), provide them as a string AND add a field "isGeneralKnowledgeInstructions: true". 
+                    *   Otherwise, provide null.
+                7.  Important Side Effects: List serious or common side effects/warnings mentioned in the image.
+                    *   If side effects/warnings are found in the image: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific side effects/warnings ARE NOT found in the image: Check your general knowledge for this medication. If well-known common or important side effects exist (e.g., "Metformin may cause digestive upset"), list 1-3 key ones as a string AND add a field "isGeneralKnowledgeSideEffects: true".
+                    *   Otherwise, provide null.
+
+                Format the final output strictly as a JSON array containing these medication objects. Ensure all fields (e.g., "isGeneralKnowledgeInstructions") are included, set to "true" or "false"/"null" as appropriate.
+                Make sure the output is ONLY the JSON array and nothing else before or after it.
+                Example of one object in the array (ensure valid JSON format in output):
+                {
+                  "Name": { "Generic": "Levothyroxine", "Brand": null },
+                  "SuggestedName": null,
+                  "Dosage": "137 mcg",
+                  "Frequency": "Once daily",
+                  "Purpose": "Treats low thyroid hormone levels",
+                  "Special Instructions": "Take on empty stomach 30-60 minutes before breakfast.",
+                  "isGeneralKnowledgeInstructions": true,
+                  "Important Side Effects": "Hair loss, weight changes, irregular heartbeat.",
+                  "isGeneralKnowledgeSideEffects": true 
+                }
+                If no medications are mentioned, return an empty JSON array [].
+            `;
             
             // Get document type
             const classifyResult = await this.model.generateContent([

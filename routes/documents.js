@@ -852,6 +852,151 @@ router.get('/medications', isAuthenticated, async (req, res) => {
   }
 });
 
+// --- NEW ROUTE: Get Aggregated User Medications --- 
+router.get('/medications/all', isAuthenticated, async (req, res) => {
+    // --- Enhanced Log --- 
+    console.log(`[Medications Backend V2] Route handler for /medications/all TRIGGERED. User: ${req.user?.uid}. Full Path: ${req.originalUrl}`);
+    // --- End Log --- 
+    // console.log('API route /medications/all hit, user ID:', req.user.uid); // Redundant log removed
+    try {
+        const userId = req.user.uid;
+        console.log(`[Medications Backend V2] Querying Firestore for userId=${userId}, isProcessed=true`);
+        const documentsSnapshot = await db.collection('documents')
+                                          .where('userId', '==', userId)
+                                          .where('isProcessed', '==', true) // Only consider processed docs
+                                          .get();
+        console.log(`[Medications Backend V2] Firestore query returned ${documentsSnapshot.size} documents.`);
+
+        const uniqueMedicationsMap = new Map();
+
+        if (!documentsSnapshot.empty) {
+            documentsSnapshot.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.medications && Array.isArray(data.medications)) {
+                    data.medications.forEach(med => {
+                        // Determine the primary name for deduplication
+                        const medKey = med.Name?.Generic || med.Name?.Brand || med.SuggestedName;
+                        
+                        if (medKey && !uniqueMedicationsMap.has(medKey)) {
+                            // Add the first encountered medication object for this unique name
+                            uniqueMedicationsMap.set(medKey, {
+                                ...med, // Spread the medication object
+                                sourceDocumentId: docSnap.id, // Optionally track source doc
+                                sourceDocumentName: data.fileName // Optionally track source doc name
+                            }); 
+                        }
+                    });
+                }
+            });
+        }
+
+        const aggregatedMedications = Array.from(uniqueMedicationsMap.values());
+        console.log(`[Medications Backend V2] Returning ${aggregatedMedications.length} unique medications.`);
+
+        // Add caching later if needed, for now just return
+        res.set('Cache-Control', 'no-cache'); // Avoid caching for now
+        return res.status(200).json({ 
+            success: true, 
+            medications: aggregatedMedications 
+        });
+
+    } catch (error) {
+        console.error('[Medications Backend V2] Error in /medications/all handler:', error);
+        return res.status(500).json({ 
+            success: false, 
+            error: 'Server error while fetching medications' 
+        });
+    }
+});
+// --- END NEW ROUTE --- 
+
+// --- NEW ROUTE: Check Medication Interactions --- 
+router.post('/medications/check-interactions', isAuthenticated, async (req, res) => {
+    console.log('API route /medications/check-interactions hit, user ID:', req.user.uid);
+    try {
+        const { medications } = req.body;
+        const userId = req.user.uid; // For logging or potential future use
+
+        if (!medications || !Array.isArray(medications) || medications.length < 2) {
+            return res.status(400).json({ success: false, error: 'Please provide at least two medications to check.' });
+        }
+
+        console.log(`Checking interactions for user ${userId} with medications:`, medications.join(', '));
+
+        // Construct the prompt for Gemini
+        const interactionPrompt = `
+            Analyze the potential drug interactions between the following medications:
+            ${medications.map(med => `- ${med}`).join('\n')}
+
+            Based on your knowledge, provide:
+            1.  A concise overall **Risk Level** for interactions among this specific combination. Choose exactly ONE category from: None, Low, Medium, High, Severe.
+            2.  A **Description** summarizing the potential interactions. Explain the risks in simple, patient-friendly terms. Mention specific pairs if relevant. If the risk level is None or Low, briefly explain why. Provide brief suggestions or advice if applicable (e.g., \"Discuss timing with your doctor\").
+
+            Return the result ONLY as a valid JSON object with the keys \"riskLevel\" and \"description\". 
+            Example format:
+            {
+              \"riskLevel\": \"Medium\",
+              \"description\": \"Taking Medication A with Medication B may increase drowsiness. Avoid operating heavy machinery. Medication C has no significant interaction with A or B.\"
+            }
+        `;
+
+        // Use the existing geminiProcessor instance (or create one if needed)
+        // Assuming geminiProcessor is available in this scope as before
+        if (!geminiProcessor) {
+             console.error('Gemini processor instance not available in interaction check route');
+             return res.status(500).json({ success: false, error: 'Server configuration error.' });
+        }
+        
+        // Call Gemini (using the text-only model should be sufficient here)
+        // Note: We might need a specific method in GeminiProcessor or use the model directly
+        const model = geminiProcessor.model; // Access the model from the processor
+        const result = await model.generateContent(interactionPrompt);
+        const responseText = result.response.text();
+
+        console.log('Raw Gemini interaction response:', responseText);
+
+        let analysis = { riskLevel: 'Unknown', description: 'Could not determine interaction details.' };
+        try {
+            // Extract JSON from the potentially messy response
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const parsedJson = JSON.parse(jsonMatch[0]);
+                // Basic validation of expected fields
+                if (parsedJson.riskLevel && parsedJson.description) {
+                     analysis = {
+                         riskLevel: parsedJson.riskLevel,
+                         description: parsedJson.description
+                     };
+                } else {
+                     console.warn('Parsed JSON missing expected fields (riskLevel, description)', parsedJson);
+                     analysis.description = "Received incomplete interaction details from analysis.";
+                }
+            } else {
+                console.warn('No JSON object found in Gemini interaction response.');
+                analysis.description = responseText; // Fallback to showing raw text if no JSON
+            }
+        } catch (parseError) {
+            console.error('Error parsing Gemini interaction response:', parseError);
+            analysis.description = `Failed to parse interaction analysis. Raw response: ${responseText}`; // Include raw response on error
+        }
+
+        console.log('Returning interaction analysis:', analysis);
+
+        return res.status(200).json({
+            success: true,
+            analysis: analysis
+        });
+
+    } catch (error) {
+        console.error('Error checking medication interactions:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error while checking interactions'
+        });
+    }
+});
+// --- END NEW ROUTE --- 
+
 // Create a combined report from multiple documents
 router.post('/combined-report', isAuthenticated, async (req, res) => {
   try {
