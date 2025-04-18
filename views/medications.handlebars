@@ -351,11 +351,43 @@
                 return; // Should not happen with disabled button, but just in case
             }
             
+            // Sort medication names for consistent cache key regardless of selection order
+            const sortedMeds = [...selectedMeds].sort();
+            const cacheKey = `interaction_cache_${sortedMeds.join('_')}`;
+            
+            // Check if we have cached results
+            const cachedData = localStorage.getItem(cacheKey);
+            
             // Show interaction modal with loading state
             interactionContent.innerHTML = '';
             interactionLoading.classList.remove('hidden');
             interactionModal.classList.remove('hidden');
             document.body.classList.add('overflow-hidden');
+            
+            // If we have cached data that's less than 24 hours old, use it
+            if (cachedData) {
+                try {
+                    const parsedCache = JSON.parse(cachedData);
+                    const cacheTimestamp = new Date(parsedCache.timestamp);
+                    const now = new Date();
+                    const cacheAge = now - cacheTimestamp; // Age in milliseconds
+                    const cacheMaxAge = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+                    
+                    if (cacheAge < cacheMaxAge) {
+                        console.log('Using cached interaction data');
+                        // Use cached data
+                        setTimeout(() => {
+                            interactionLoading.classList.add('hidden');
+                            displayInteractionResults(parsedCache, true);
+                        }, 300); // Small delay for better UX
+                        return;
+                    } else {
+                        console.log('Cached interaction data expired, fetching fresh data');
+                    }
+                } catch (e) {
+                    console.error('Error parsing cached interaction data:', e);
+                }
+            }
             
             // Call the API endpoint to check interactions
             fetch('/api/documents/medications/check-interactions', {
@@ -379,84 +411,12 @@
                     throw new Error('Invalid response format');
                 }
                 
-                const analysis = data.analysis;
-                const riskColor = getRiskColor(analysis.riskLevel);
+                // Cache the successful results
+                data.timestamp = new Date().toISOString();
+                localStorage.setItem(cacheKey, JSON.stringify(data));
                 
-                // Build interaction results HTML
-                let resultsHTML = `
-                    <div class="text-center mb-4">
-                        <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${riskColor}">
-                            ${analysis.riskLevel} Risk
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
-                        <h4 class="font-semibold mb-2">Summary</h4>
-                        <p>${analysis.summary}</p>
-                    </div>
-                `;
-                
-                // Add specific interactions section if there are any
-                if (analysis.interactions && analysis.interactions.length > 0) {
-                    resultsHTML += `
-                        <div class="mb-4">
-                            <h4 class="font-semibold mb-2">Specific Interactions</h4>
-                            <div class="space-y-3">
-                    `;
-                    
-                    analysis.interactions.forEach(interaction => {
-                        const severityColor = getSeverityColor(interaction.severity);
-                        resultsHTML += `
-                            <div class="border border-gray-200 rounded-md p-3">
-                                <div class="flex justify-between items-start">
-                                    <div class="font-medium">${interaction.pair.join(' + ')}</div>
-                                    <span class="text-xs px-2 py-0.5 rounded-full ${severityColor}">${interaction.severity}</span>
-                                </div>
-                                <div class="mt-2 text-sm">
-                                    <div><span class="font-medium">Effect:</span> ${interaction.effect}</div>
-                                    ${interaction.mechanism ? `<div><span class="font-medium">Mechanism:</span> ${interaction.mechanism}</div>` : ''}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    resultsHTML += `
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                // Add patient instructions section
-                if (analysis.patientInstructions) {
-                    resultsHTML += `
-                        <div class="bg-blue-50 p-4 rounded-lg mb-4">
-                            <h4 class="font-semibold text-blue-800 mb-2">Instructions</h4>
-                            <p class="text-blue-900">${analysis.patientInstructions}</p>
-                        </div>
-                    `;
-                }
-                
-                // Add warning symptoms section
-                if (analysis.warningSymptoms) {
-                    resultsHTML += `
-                        <div class="bg-red-50 p-4 rounded-lg mb-4">
-                            <h4 class="font-semibold text-red-800 mb-2">Warning Signs</h4>
-                            <p class="text-red-900">${analysis.warningSymptoms}</p>
-                        </div>
-                    `;
-                }
-                
-                // Add healthcare consultation section
-                if (analysis.consultHealthcare) {
-                    resultsHTML += `
-                        <div class="bg-yellow-50 p-4 rounded-lg">
-                            <h4 class="font-semibold text-yellow-800 mb-2">Medical Considerations</h4>
-                            <p class="text-yellow-900">${analysis.consultHealthcare}</p>
-                        </div>
-                    `;
-                }
-                
-                // Set the content
-                interactionContent.innerHTML = resultsHTML;
+                // Display the results
+                displayInteractionResults(data, false);
             })
             .catch(error => {
                 // Hide loading and show error
@@ -470,6 +430,148 @@
                 `;
             });
         });
+        
+        // Function to display interaction results
+        function displayInteractionResults(data, isCached) {
+            const analysis = data.analysis;
+            const riskColor = getRiskColor(analysis.riskLevel);
+            
+            // Build interaction results HTML
+            let resultsHTML = `
+                ${isCached ? `
+                <div class="bg-yellow-50 text-yellow-800 p-2 text-xs rounded text-center mb-3">
+                    Using cached results from ${new Date(data.timestamp).toLocaleString()}
+                    <button id="refresh-interactions" class="ml-2 underline hover:no-underline">Refresh</button>
+                </div>` : ''}
+                <div class="text-center mb-4">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${riskColor}">
+                        ${analysis.riskLevel} Risk
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                    <h4 class="font-semibold mb-2">Summary</h4>
+                    <p>${analysis.summary}</p>
+                </div>
+            `;
+            
+            // Add specific interactions section if there are any
+            if (analysis.interactions && analysis.interactions.length > 0) {
+                resultsHTML += `
+                    <div class="mb-4">
+                        <h4 class="font-semibold mb-2">Specific Interactions</h4>
+                        <div class="space-y-3">
+                `;
+                
+                analysis.interactions.forEach(interaction => {
+                    const severityColor = getSeverityColor(interaction.severity);
+                    resultsHTML += `
+                        <div class="border border-gray-200 rounded-md p-3">
+                            <div class="flex justify-between items-start">
+                                <div class="font-medium">${interaction.pair.join(' + ')}</div>
+                                <span class="text-xs px-2 py-0.5 rounded-full ${severityColor}">${interaction.severity}</span>
+                            </div>
+                            <div class="mt-2 text-sm">
+                                <div><span class="font-medium">Effect:</span> ${interaction.effect}</div>
+                                ${interaction.mechanism ? `<div><span class="font-medium">Mechanism:</span> ${interaction.mechanism}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                resultsHTML += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Add patient instructions section
+            if (analysis.patientInstructions) {
+                resultsHTML += `
+                    <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold text-blue-800 mb-2">Instructions</h4>
+                        <p class="text-blue-900">${analysis.patientInstructions}</p>
+                    </div>
+                `;
+            }
+            
+            // Add warning symptoms section
+            if (analysis.warningSymptoms) {
+                resultsHTML += `
+                    <div class="bg-red-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold text-red-800 mb-2">Warning Signs</h4>
+                        <p class="text-red-900">${analysis.warningSymptoms}</p>
+                    </div>
+                `;
+            }
+            
+            // Add healthcare consultation section
+            if (analysis.consultHealthcare) {
+                resultsHTML += `
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-yellow-800 mb-2">Medical Considerations</h4>
+                        <p class="text-yellow-900">${analysis.consultHealthcare}</p>
+                    </div>
+                `;
+            }
+            
+            // Set the content
+            interactionContent.innerHTML = resultsHTML;
+            
+            // Add refresh button event listener if cached
+            if (isCached) {
+                document.getElementById('refresh-interactions').addEventListener('click', function() {
+                    // Get the currently selected meds
+                    const selectedMeds = Array.from(document.querySelectorAll('.med-checkbox:checked')).map(cb => cb.dataset.name);
+                    // Clear the cache for these meds
+                    const sortedMeds = [...selectedMeds].sort();
+                    const cacheKey = `interaction_cache_${sortedMeds.join('_')}`;
+                    localStorage.removeItem(cacheKey);
+                    
+                    // Show loading and fetch fresh data
+                    interactionContent.innerHTML = '';
+                    interactionLoading.classList.remove('hidden');
+                    
+                    // Call API again
+                    fetch('/api/documents/medications/check-interactions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ medications: selectedMeds })
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        interactionLoading.classList.add('hidden');
+                        
+                        if (!data.success || !data.analysis) {
+                            throw new Error('Invalid response format');
+                        }
+                        
+                        // Cache the fresh results
+                        data.timestamp = new Date().toISOString();
+                        localStorage.setItem(cacheKey, JSON.stringify(data));
+                        
+                        // Display the results
+                        displayInteractionResults(data, false);
+                    })
+                    .catch(error => {
+                        interactionLoading.classList.add('hidden');
+                        console.error('Error refreshing interactions:', error);
+                        interactionContent.innerHTML = `
+                            <div class="bg-red-50 p-4 rounded-lg">
+                                <h4 class="font-semibold text-red-800 mb-2">Error</h4>
+                                <p class="text-red-900">Could not refresh drug interactions. Please try again later.</p>
+                            </div>
+                        `;
+                    });
+                });
+            }
+        }
         
         // Get appropriate color based on risk level
         function getRiskColor(risk) {
