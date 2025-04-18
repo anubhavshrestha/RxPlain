@@ -8,6 +8,28 @@
 
     <!-- Main Content -->
     <div class="bg-white p-6 rounded-lg shadow">
+        <!-- Search and Action Bar -->
+        <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0 sm:space-x-4">
+            <!-- Search Bar - Improved styling -->
+            <div class="relative max-w-md">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <input id="medication-search" type="text" placeholder="Search medications..." class="pl-10 h-10 rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 block w-full">
+            </div>
+            
+            <!-- Check Interactions Button -->
+            <button id="check-interactions-btn" disabled class="bg-green-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Check Drug Interactions
+                <span id="selected-count" class="ml-2 bg-white bg-opacity-20 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+            </button>
+        </div>
+
         <!-- Medication List -->
         <div id="medication-list" class="space-y-6">
             <!-- Loading Placeholder -->
@@ -27,30 +49,22 @@
                     Go to Dashboard
                 </a>
             </div>
+
+            <!-- No Search Results State -->
+            <div id="no-results-state" class="hidden py-10 text-center">
+                <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No medications match your search</h3>
+                <p class="mt-2 text-gray-600">Try adjusting your search criteria or clear the search.</p>
+                <button id="clear-search-btn" class="mt-4 inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-health-600 border border-transparent rounded-md shadow-sm hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
+                    Clear Search
+                </button>
+            </div>
             
             <!-- Medication Cards -->
-            <div id="medication-cards" class="hidden">
-                <!-- Filter and Sort Controls -->
-                <div class="mb-6 flex items-center justify-between">
-                    <div class="flex space-x-4">
-                        <select id="document-type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
-                            <option value="all">All Document Types</option>
-                            <option value="PRESCRIPTION">Prescriptions</option>
-                            <option value="LAB_REPORT">Lab Reports</option>
-                            <option value="CLINICAL_NOTES">Clinical Notes</option>
-                            <option value="INSURANCE">Insurance</option>
-                            <option value="MISCELLANEOUS">Other</option>
-                        </select>
-                    </div>
-                    <div>
-                        <input id="medication-search" type="text" placeholder="Search medications..." class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
-                    </div>
-                </div>
-                
-                <!-- Medication Grid -->
-                <div id="medications-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Medication cards will be inserted here by JS -->
-                </div>
+            <div id="medications-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Medication cards will be inserted here by JS -->
             </div>
         </div>
     </div>
@@ -58,27 +72,78 @@
 
 <!-- Medication Template -->
 <template id="medication-card-template">
-    <div class="medication-card bg-blue-50 p-4 rounded-lg border border-blue-100">
+    <div class="medication-card bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
         <div class="flex items-start justify-between">
-            <h3 class="medication-name text-lg font-semibold text-gray-900"></h3>
-            <span class="document-type px-2 py-1 text-xs font-medium rounded-full"></span>
+            <div class="flex items-start flex-grow">
+                <div class="mr-3">
+                    <input type="checkbox" class="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500 med-checkbox">
+                </div>
+                <h3 class="medication-name text-md font-semibold text-gray-900"></h3>
+            </div>
+            <button class="expand-btn text-health-600 hover:text-health-800 p-1 rounded-full hover:bg-health-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
         </div>
-        <div class="mt-3 grid grid-cols-1 gap-2">
-            <p class="dosage"><span class="font-medium">Dosage:</span> <span class="dosage-value"></span></p>
-            <p class="frequency"><span class="font-medium">Frequency:</span> <span class="frequency-value"></span></p>
-            <p class="purpose"><span class="font-medium">Purpose:</span> <span class="purpose-value"></span></p>
-        </div>
-        <div class="mt-3">
-            <p class="instructions text-sm text-gray-700"><span class="font-medium">Instructions:</span> <span class="instructions-value"></span></p>
-        </div>
-        <div class="mt-3">
-            <p class="warnings text-sm text-red-600 hidden"><span class="font-medium">Warnings:</span> <span class="warnings-value"></span></p>
-        </div>
-        <div class="mt-4 pt-3 border-t border-blue-100 text-xs text-gray-500">
-            From <span class="document-name font-medium"></span>
+        <div class="mt-2 text-sm text-gray-600 line-clamp-1 purpose-preview"></div>
+        <div class="mt-2 text-xs text-gray-500 document-name"></div>
+        
+        <!-- Hidden details (will be shown in modal) -->
+        <div class="medication-details hidden">
+            <div class="dosage"><span class="font-medium">Dosage:</span> <span class="dosage-value"></span></div>
+            <div class="frequency"><span class="font-medium">Frequency:</span> <span class="frequency-value"></span></div>
+            <div class="purpose"><span class="font-medium">Purpose:</span> <span class="purpose-value"></span></div>
+            <div class="instructions"><span class="font-medium">Instructions:</span> <span class="instructions-value"></span></div>
+            <div class="warnings hidden"><span class="font-medium text-red-600">Warnings:</span> <span class="warnings-value text-red-600"></span></div>
         </div>
     </div>
 </template>
+
+<!-- Modal Template -->
+<div id="medication-detail-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-5">
+            <div class="flex items-start justify-between mb-4">
+                <h3 id="modal-title" class="text-xl font-semibold text-gray-900"></h3>
+                <button id="close-modal-btn" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="modal-content" class="space-y-4"></div>
+            <div class="mt-5 border-t border-gray-200 pt-4">
+                <span id="modal-source" class="text-sm text-gray-500"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Drug Interactions Results Modal -->
+<div id="interaction-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-5">
+            <div class="flex items-start justify-between mb-4">
+                <h3 class="text-xl font-semibold text-gray-900">Drug Interaction Results</h3>
+                <button id="close-interaction-btn" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div id="interaction-loading" class="py-6 text-center hidden">
+                <div class="inline-block animate-spin h-8 w-8 border-4 border-gray-200 rounded-full border-t-green-500"></div>
+                <p class="mt-4 text-gray-600">Analyzing drug interactions...</p>
+            </div>
+            <div id="interaction-content" class="space-y-4"></div>
+            <div class="mt-5 pt-4 text-sm text-gray-500 text-center">
+                <p>This analysis is generated by AI and is not a substitute for professional medical advice.</p>
+                <p>Always consult your healthcare provider before changing medication regimens.</p>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- JavaScript -->
 <script>
@@ -86,17 +151,30 @@
         const medicationList = document.getElementById('medication-list');
         const loadingPlaceholder = document.getElementById('loading-placeholder');
         const emptyState = document.getElementById('empty-state');
-        const medicationCards = document.getElementById('medication-cards');
+        const noResultsState = document.getElementById('no-results-state');
         const medicationsContainer = document.getElementById('medications-container');
         const medicationTemplate = document.getElementById('medication-card-template');
-        const documentTypeFilter = document.getElementById('document-type-filter');
         const medicationSearch = document.getElementById('medication-search');
+        const clearSearchBtn = document.getElementById('clear-search-btn');
+        const modal = document.getElementById('medication-detail-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalContent = document.getElementById('modal-content');
+        const modalSource = document.getElementById('modal-source');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const checkInteractionsBtn = document.getElementById('check-interactions-btn');
+        const selectedCountBadge = document.getElementById('selected-count');
+        const interactionModal = document.getElementById('interaction-modal');
+        const interactionContent = document.getElementById('interaction-content');
+        const interactionLoading = document.getElementById('interaction-loading');
+        const closeInteractionBtn = document.getElementById('close-interaction-btn');
         
         let allMedications = [];
+        let hasInitialResults = false;
+        let selectedMedications = new Set();
         
-        // Fetch user's medications
+        // Fetch user's medications from the better endpoint that uses document data
         try {
-            const response = await fetch('/api/documents/medications');
+            const response = await fetch('/api/documents/medications/all');
             if (!response.ok) {
                 throw new Error('Failed to fetch medications');
             }
@@ -112,7 +190,7 @@
                 if (allMedications.length === 0) {
                     emptyState.classList.remove('hidden');
                 } else {
-                    medicationCards.classList.remove('hidden');
+                    hasInitialResults = true;
                     renderMedications(allMedications);
                 }
             } else {
@@ -129,105 +207,358 @@
             medicationsContainer.innerHTML = '';
             
             if (medications.length === 0) {
-                medicationCards.classList.add('hidden');
-                emptyState.classList.remove('hidden');
+                if (hasInitialResults) {
+                    // Show "no results" state when search returns empty
+                    noResultsState.classList.remove('hidden');
+                    medicationsContainer.classList.add('hidden');
+                } else {
+                    // Show empty state when there are no medications at all
+                    emptyState.classList.remove('hidden');
+                    medicationsContainer.classList.add('hidden');
+                }
                 return;
             }
             
-            medicationCards.classList.remove('hidden');
+            // Hide both states if we have results
             emptyState.classList.add('hidden');
+            noResultsState.classList.add('hidden');
+            medicationsContainer.classList.remove('hidden');
             
             medications.forEach(med => {
                 const card = document.importNode(medicationTemplate.content, true);
                 
+                // Handle the new medication structure with Name object
+                const medicationName = med.Name?.Generic || med.Name?.Brand || med.SuggestedName || 'Unnamed Medication';
+                const medId = med.id || generateId(medicationName);
+                
                 // Set medication data
-                card.querySelector('.medication-name').textContent = med.name || 'Unnamed Medication';
+                card.querySelector('.medication-name').textContent = medicationName;
                 
-                // Set document type badge
-                const docTypeBadge = card.querySelector('.document-type');
-                docTypeBadge.textContent = med.documentType || 'Unknown';
+                // Set up checkbox
+                const checkbox = card.querySelector('.med-checkbox');
+                checkbox.value = medId;
+                checkbox.dataset.name = medicationName;
+                checkbox.checked = selectedMedications.has(medId);
+                checkbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        selectedMedications.add(medId);
+                    } else {
+                        selectedMedications.delete(medId);
+                    }
+                    updateInteractionButton();
+                });
                 
-                // Set badge color based on document type
-                switch (med.documentType) {
-                    case 'PRESCRIPTION':
-                        docTypeBadge.classList.add('bg-green-100', 'text-green-800');
-                        break;
-                    case 'LAB_REPORT':
-                        docTypeBadge.classList.add('bg-blue-100', 'text-blue-800');
-                        break;
-                    case 'CLINICAL_NOTES':
-                        docTypeBadge.classList.add('bg-purple-100', 'text-purple-800');
-                        break;
-                    case 'INSURANCE':
-                        docTypeBadge.classList.add('bg-yellow-100', 'text-yellow-800');
-                        break;
-                    default:
-                        docTypeBadge.classList.add('bg-gray-100', 'text-gray-800');
-                        break;
-                }
+                // Set purpose preview
+                card.querySelector('.purpose-preview').textContent = med.Purpose || 'No purpose specified';
                 
-                // Set other medication details
-                card.querySelector('.dosage-value').textContent = med.dosage || 'Not specified';
-                card.querySelector('.frequency-value').textContent = med.frequency || 'Not specified';
-                card.querySelector('.purpose-value').textContent = med.purpose || 'Not specified';
-                card.querySelector('.instructions-value').textContent = med.instructions || 'None provided';
+                // Set other medication details in the hidden details section
+                card.querySelector('.dosage-value').textContent = med.Dosage || 'Not specified';
+                card.querySelector('.frequency-value').textContent = med.Frequency || 'Not specified';
+                card.querySelector('.purpose-value').textContent = med.Purpose || 'Not specified';
+                card.querySelector('.instructions-value').textContent = med['Special Instructions'] || 'None provided';
                 
                 // Show warnings if they exist
-                if (med.warnings) {
+                if (med['Important Side Effects']) {
                     card.querySelector('.warnings').classList.remove('hidden');
-                    card.querySelector('.warnings-value').textContent = med.warnings;
+                    card.querySelector('.warnings-value').textContent = med['Important Side Effects'];
                 }
                 
-                // Set document name
-                card.querySelector('.document-name').textContent = med.documentName || 'Unknown Document';
+                // Set document name if it exists
+                card.querySelector('.document-name').textContent = `From: ${med.sourceDocumentName || 'Unknown Document'}`;
+                
+                // Add expand button click handler
+                const expandBtn = card.querySelector('.expand-btn');
+                expandBtn.addEventListener('click', () => {
+                    showMedicationModal(med, medicationName);
+                });
                 
                 medicationsContainer.appendChild(card);
             });
+            
+            // Update interaction button state
+            updateInteractionButton();
         }
         
-        // Handle document type filtering
-        documentTypeFilter.addEventListener('change', function() {
-            const filterValue = this.value;
+        // Generate a simple ID for medications if they don't have one
+        function generateId(name) {
+            return 'med_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        }
+        
+        // Update the interaction button state
+        function updateInteractionButton() {
+            const count = selectedMedications.size;
             
-            let filteredMeds = allMedications;
+            if (count >= 2) {
+                checkInteractionsBtn.disabled = false;
+                selectedCountBadge.textContent = count;
+                selectedCountBadge.classList.remove('hidden');
+            } else {
+                checkInteractionsBtn.disabled = true;
+                selectedCountBadge.classList.add('hidden');
+            }
+        }
+        
+        // Function to show medication details in modal
+        function showMedicationModal(medication, displayName) {
+            modalTitle.textContent = displayName;
+            modalSource.textContent = `From: ${medication.sourceDocumentName || 'Unknown Document'}`;
             
-            if (filterValue !== 'all') {
-                filteredMeds = allMedications.filter(med => med.documentType === filterValue);
+            // Build the content
+            let contentHTML = `
+                <div class="grid grid-cols-1 gap-3">
+                    <div class="px-3 py-2 bg-blue-50 rounded-md">
+                        <div class="font-medium text-blue-800">Dosage</div>
+                        <div>${medication.Dosage || 'Not specified'}</div>
+                    </div>
+                    <div class="px-3 py-2 bg-blue-50 rounded-md">
+                        <div class="font-medium text-blue-800">Frequency</div>
+                        <div>${medication.Frequency || 'Not specified'}</div>
+                    </div>
+                    <div class="px-3 py-2 bg-blue-50 rounded-md">
+                        <div class="font-medium text-blue-800">Purpose</div>
+                        <div>${medication.Purpose || 'Not specified'}</div>
+                    </div>
+                    <div class="px-3 py-2 bg-blue-50 rounded-md">
+                        <div class="font-medium text-blue-800">Instructions</div>
+                        <div>${medication['Special Instructions'] || 'None provided'}</div>
+                    </div>
+            `;
+            
+            // Add warnings if they exist
+            if (medication['Important Side Effects']) {
+                contentHTML += `
+                    <div class="px-3 py-2 bg-red-50 rounded-md">
+                        <div class="font-medium text-red-800">Warnings</div>
+                        <div class="text-red-700">${medication['Important Side Effects']}</div>
+                    </div>
+                `;
             }
             
-            // Apply search filter too
-            const searchValue = medicationSearch.value.toLowerCase();
-            if (searchValue) {
-                filteredMeds = filteredMeds.filter(med => 
-                    (med.name && med.name.toLowerCase().includes(searchValue)) ||
-                    (med.purpose && med.purpose.toLowerCase().includes(searchValue))
-                );
+            contentHTML += `</div>`;
+            modalContent.innerHTML = contentHTML;
+            
+            // Show the modal
+            modal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden'); // Prevent scrolling behind modal
+        }
+        
+        // Check drug interactions
+        checkInteractionsBtn.addEventListener('click', function() {
+            // Get selected medication names
+            const selectedMeds = Array.from(document.querySelectorAll('.med-checkbox:checked')).map(cb => cb.dataset.name);
+            
+            if (selectedMeds.length < 2) {
+                return; // Should not happen with disabled button, but just in case
             }
             
-            renderMedications(filteredMeds);
+            // Show interaction modal with loading state
+            interactionContent.innerHTML = '';
+            interactionLoading.classList.remove('hidden');
+            interactionModal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+            
+            // Call the API endpoint to check interactions
+            fetch('/api/documents/medications/check-interactions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ medications: selectedMeds })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                // Hide loading
+                interactionLoading.classList.add('hidden');
+                
+                if (!data.success || !data.analysis) {
+                    throw new Error('Invalid response format');
+                }
+                
+                const analysis = data.analysis;
+                const riskColor = getRiskColor(analysis.riskLevel);
+                
+                // Build interaction results HTML
+                let resultsHTML = `
+                    <div class="text-center mb-4">
+                        <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${riskColor}">
+                            ${analysis.riskLevel} Risk
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg mb-4">
+                        <h4 class="font-semibold mb-2">Summary</h4>
+                        <p>${analysis.summary}</p>
+                    </div>
+                `;
+                
+                // Add specific interactions section if there are any
+                if (analysis.interactions && analysis.interactions.length > 0) {
+                    resultsHTML += `
+                        <div class="mb-4">
+                            <h4 class="font-semibold mb-2">Specific Interactions</h4>
+                            <div class="space-y-3">
+                    `;
+                    
+                    analysis.interactions.forEach(interaction => {
+                        const severityColor = getSeverityColor(interaction.severity);
+                        resultsHTML += `
+                            <div class="border border-gray-200 rounded-md p-3">
+                                <div class="flex justify-between items-start">
+                                    <div class="font-medium">${interaction.pair.join(' + ')}</div>
+                                    <span class="text-xs px-2 py-0.5 rounded-full ${severityColor}">${interaction.severity}</span>
+                                </div>
+                                <div class="mt-2 text-sm">
+                                    <div><span class="font-medium">Effect:</span> ${interaction.effect}</div>
+                                    ${interaction.mechanism ? `<div><span class="font-medium">Mechanism:</span> ${interaction.mechanism}</div>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    resultsHTML += `
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Add patient instructions section
+                if (analysis.patientInstructions) {
+                    resultsHTML += `
+                        <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                            <h4 class="font-semibold text-blue-800 mb-2">Instructions</h4>
+                            <p class="text-blue-900">${analysis.patientInstructions}</p>
+                        </div>
+                    `;
+                }
+                
+                // Add warning symptoms section
+                if (analysis.warningSymptoms) {
+                    resultsHTML += `
+                        <div class="bg-red-50 p-4 rounded-lg mb-4">
+                            <h4 class="font-semibold text-red-800 mb-2">Warning Signs</h4>
+                            <p class="text-red-900">${analysis.warningSymptoms}</p>
+                        </div>
+                    `;
+                }
+                
+                // Add healthcare consultation section
+                if (analysis.consultHealthcare) {
+                    resultsHTML += `
+                        <div class="bg-yellow-50 p-4 rounded-lg">
+                            <h4 class="font-semibold text-yellow-800 mb-2">Medical Considerations</h4>
+                            <p class="text-yellow-900">${analysis.consultHealthcare}</p>
+                        </div>
+                    `;
+                }
+                
+                // Set the content
+                interactionContent.innerHTML = resultsHTML;
+            })
+            .catch(error => {
+                // Hide loading and show error
+                interactionLoading.classList.add('hidden');
+                console.error('Error checking interactions:', error);
+                interactionContent.innerHTML = `
+                    <div class="bg-red-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-red-800 mb-2">Error</h4>
+                        <p class="text-red-900">Could not analyze drug interactions. Please try again later.</p>
+                    </div>
+                `;
+            });
+        });
+        
+        // Get appropriate color based on risk level
+        function getRiskColor(risk) {
+            switch(risk.toLowerCase()) {
+                case 'none':
+                    return 'bg-green-100 text-green-800';
+                case 'low':
+                    return 'bg-blue-100 text-blue-800';
+                case 'medium':
+                    return 'bg-yellow-100 text-yellow-800';
+                case 'high':
+                    return 'bg-orange-100 text-orange-800';
+                case 'severe':
+                    return 'bg-red-100 text-red-800';
+                default:
+                    return 'bg-gray-100 text-gray-800';
+            }
+        }
+        
+        // Get appropriate color based on severity
+        function getSeverityColor(severity) {
+            switch(severity.toLowerCase()) {
+                case 'mild':
+                    return 'bg-blue-100 text-blue-800';
+                case 'moderate':
+                    return 'bg-yellow-100 text-yellow-800';
+                case 'serious':
+                    return 'bg-red-100 text-red-800';
+                default:
+                    return 'bg-gray-100 text-gray-800';
+            }
+        }
+        
+        // Close interaction modal
+        closeInteractionBtn.addEventListener('click', () => {
+            interactionModal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        });
+        
+        // Close interaction modal when clicking outside
+        interactionModal.addEventListener('click', (e) => {
+            if (e.target === interactionModal) {
+                interactionModal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+        });
+        
+        // Close modal when clicking the close button
+        closeModalBtn.addEventListener('click', () => {
+            modal.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        });
+        
+        // Close modal when clicking outside the content
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
         });
         
         // Handle medication search
         medicationSearch.addEventListener('input', function() {
-            const searchValue = this.value.toLowerCase();
-            const filterValue = documentTypeFilter.value;
+            applySearch();
+        });
+        
+        // Clear search button
+        clearSearchBtn.addEventListener('click', function() {
+            medicationSearch.value = '';
+            applySearch();
+        });
+        
+        // Function to apply search
+        function applySearch() {
+            const searchValue = medicationSearch.value.toLowerCase();
             
             let filteredMeds = allMedications;
             
-            // Apply document type filter
-            if (filterValue !== 'all') {
-                filteredMeds = filteredMeds.filter(med => med.documentType === filterValue);
-            }
-            
             // Apply search filter
             if (searchValue) {
-                filteredMeds = filteredMeds.filter(med => 
-                    (med.name && med.name.toLowerCase().includes(searchValue)) ||
-                    (med.purpose && med.purpose.toLowerCase().includes(searchValue))
-                );
+                filteredMeds = filteredMeds.filter(med => {
+                    // Get the name from the medication structure
+                    const name = med.Name?.Generic || med.Name?.Brand || med.SuggestedName || '';
+                    const purpose = med.Purpose || '';
+                    return name.toLowerCase().includes(searchValue) || purpose.toLowerCase().includes(searchValue);
+                });
             }
             
             renderMedications(filteredMeds);
-        });
+        }
     });
 </script> 

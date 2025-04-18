@@ -732,7 +732,11 @@ router.post('/simplify/:documentId', isAuthenticated, async (req, res) => {
         const batch = db.batch();
         
         for (const medication of processResult.medications) {
-          if (!medication.name) continue; // Skip meds without names
+          // Get the name from the medication object structure
+          const medicationName = medication.Name?.Generic || medication.Name?.Brand || medication.SuggestedName || 'Unnamed Medication';
+          
+          // Skip if we couldn't determine a meaningful name
+          if (medicationName === 'Unnamed Medication') continue;
           
           // Create a unique ID for the medication record
           const medId = uuidv4();
@@ -743,12 +747,12 @@ router.post('/simplify/:documentId', isAuthenticated, async (req, res) => {
             userId: userId,
             documentId: documentId,
             documentName: documentData.fileName,
-            name: medication.name,
-            dosage: medication.dosage || '',
-            frequency: medication.frequency || '',
-            purpose: medication.purpose || '',
-            instructions: medication.instructions || '',
-            warnings: medication.warnings || '',
+            name: medicationName,
+            dosage: medication.Dosage || '',
+            frequency: medication.Frequency || '',
+            purpose: medication.Purpose || '',
+            instructions: medication['Special Instructions'] || '',
+            warnings: medication['Important Side Effects'] || '',
             addedAt: admin.firestore.FieldValue.serverTimestamp(),
             documentType: processResult.documentType
           });
@@ -819,11 +823,15 @@ router.get('/medications', isAuthenticated, async (req, res) => {
   try {
     const userId = req.user.uid;
     
+    console.log(`[Medications Route] Fetching medications for user: ${userId}`);
+    
     // Get user's medications
     const medicationsSnapshot = await db.collection('medications')
       .where('userId', '==', userId)
       .orderBy('addedAt', 'desc')
       .get();
+    
+    console.log(`[Medications Route] Found ${medicationsSnapshot.size} medications in collection`);
     
     if (medicationsSnapshot.empty) {
       return res.status(200).json({ medications: [] });
@@ -841,6 +849,8 @@ router.get('/medications', isAuthenticated, async (req, res) => {
       
       medications.push(medData);
     });
+    
+    console.log(`[Medications Route] Returning ${medications.length} processed medications`);
     
     return res.status(200).json({
       success: true,
@@ -910,7 +920,7 @@ router.get('/medications/all', isAuthenticated, async (req, res) => {
 });
 // --- END NEW ROUTE --- 
 
-// --- NEW ROUTE: Check Medication Interactions --- 
+// --- ENHANCED: Check Medication Interactions --- 
 router.post('/medications/check-interactions', isAuthenticated, async (req, res) => {
     console.log('API route /medications/check-interactions hit, user ID:', req.user.uid);
     try {
@@ -923,69 +933,112 @@ router.post('/medications/check-interactions', isAuthenticated, async (req, res)
 
         console.log(`Checking interactions for user ${userId} with medications:`, medications.join(', '));
 
-        // Construct the prompt for Gemini
+        // Enhanced prompt for Gemini
         const interactionPrompt = `
             Analyze the potential drug interactions between the following medications:
             ${medications.map(med => `- ${med}`).join('\n')}
 
-            Based on your knowledge, provide:
-            1.  A concise overall **Risk Level** for interactions among this specific combination. Choose exactly ONE category from: None, Low, Medium, High, Severe.
-            2.  A **Description** summarizing the potential interactions. Explain the risks in simple, patient-friendly terms. Mention specific pairs if relevant. If the risk level is None or Low, briefly explain why. Provide brief suggestions or advice if applicable (e.g., \"Discuss timing with your doctor\").
+            Based on your pharmacological knowledge, provide a comprehensive analysis in the following structured format:
 
-            Return the result ONLY as a valid JSON object with the keys \"riskLevel\" and \"description\". 
-            Example format:
+            1. Overall Risk Assessment:
+               - Risk Level: Assign exactly ONE category: None, Low, Medium, High, or Severe.
+               - Summary: Provide a 1-2 sentence summary of the overall interaction risk.
+
+            2. Specific Interactions:
+               - For each interacting pair, explain the mechanism of interaction, potential effects, and severity.
+               - If no interactions exist between certain medications, explicitly state this.
+
+            3. Patient Instructions:
+               - Provide clear, actionable instructions for the patient (e.g., timing of medications, foods to avoid).
+               - Include any warning signs to watch for that would require medical attention.
+
+            4. Medical Considerations:
+               - Note any situations where a healthcare provider should be consulted.
+               - Mention any monitoring that may be needed.
+
+            Return ONLY a valid JSON object with the following structure:
             {
-              \"riskLevel\": \"Medium\",
-              \"description\": \"Taking Medication A with Medication B may increase drowsiness. Avoid operating heavy machinery. Medication C has no significant interaction with A or B.\"
+              "riskLevel": "Medium", // One of: None, Low, Medium, High, Severe
+              "summary": "These medications have potential interactions that require attention.",
+              "interactions": [
+                {
+                  "pair": ["Drug A", "Drug B"],
+                  "effect": "May increase blood pressure",
+                  "severity": "Moderate", // One of: Mild, Moderate, Serious
+                  "mechanism": "Drug A inhibits the metabolism of Drug B"
+                }
+              ],
+              "patientInstructions": "Take Drug A in the morning and Drug B in the evening to minimize interaction.",
+              "warningSymptoms": "Contact your doctor if you experience dizziness, rapid heartbeat, or severe headache.",
+              "consultHealthcare": "Discuss with your doctor if you have liver or kidney disease as this may affect dosing."
             }
+
+            If no interactions exist, still provide the complete structure with appropriate content indicating no interactions.
         `;
 
-        // Use the existing geminiProcessor instance (or create one if needed)
-        // Assuming geminiProcessor is available in this scope as before
+        // Use the existing geminiProcessor instance
         if (!geminiProcessor) {
-             console.error('Gemini processor instance not available in interaction check route');
-             return res.status(500).json({ success: false, error: 'Server configuration error.' });
+            console.error('Gemini processor instance not available in interaction check route');
+            return res.status(500).json({ success: false, error: 'Server configuration error.' });
         }
         
-        // Call Gemini (using the text-only model should be sufficient here)
-        // Note: We might need a specific method in GeminiProcessor or use the model directly
-        const model = geminiProcessor.model; // Access the model from the processor
+        // Call Gemini
+        const model = geminiProcessor.model;
         const result = await model.generateContent(interactionPrompt);
         const responseText = result.response.text();
 
-        console.log('Raw Gemini interaction response:', responseText);
+        console.log('Raw Gemini interaction response received');
 
-        let analysis = { riskLevel: 'Unknown', description: 'Could not determine interaction details.' };
+        // Default analysis with unknown risk
+        let analysis = { 
+            riskLevel: 'Unknown', 
+            summary: 'Could not determine interaction details.',
+            interactions: [],
+            patientInstructions: 'Please consult your healthcare provider.',
+            warningSymptoms: 'Unknown',
+            consultHealthcare: 'Consult your healthcare provider before making any changes to your medication regimen.'
+        };
+
         try {
             // Extract JSON from the potentially messy response
             const jsonMatch = responseText.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsedJson = JSON.parse(jsonMatch[0]);
-                // Basic validation of expected fields
-                if (parsedJson.riskLevel && parsedJson.description) {
-                     analysis = {
-                         riskLevel: parsedJson.riskLevel,
-                         description: parsedJson.description
-                     };
+                
+                // Basic validation
+                if (parsedJson.riskLevel) {
+                    // Transfer all fields from the parsed JSON to our analysis object
+                    analysis = {
+                        riskLevel: parsedJson.riskLevel,
+                        summary: parsedJson.summary || analysis.summary,
+                        interactions: parsedJson.interactions || [],
+                        patientInstructions: parsedJson.patientInstructions || analysis.patientInstructions,
+                        warningSymptoms: parsedJson.warningSymptoms || analysis.warningSymptoms,
+                        consultHealthcare: parsedJson.consultHealthcare || analysis.consultHealthcare
+                    };
                 } else {
-                     console.warn('Parsed JSON missing expected fields (riskLevel, description)', parsedJson);
-                     analysis.description = "Received incomplete interaction details from analysis.";
+                    console.warn('Parsed JSON missing expected fields', parsedJson);
                 }
             } else {
                 console.warn('No JSON object found in Gemini interaction response.');
-                analysis.description = responseText; // Fallback to showing raw text if no JSON
+                analysis.summary = "The analysis format was not recognized.";
             }
         } catch (parseError) {
             console.error('Error parsing Gemini interaction response:', parseError);
-            analysis.description = `Failed to parse interaction analysis. Raw response: ${responseText}`; // Include raw response on error
+            analysis.summary = `Failed to parse interaction analysis.`;
         }
 
-        console.log('Returning interaction analysis:', analysis);
+        console.log('Returning structured interaction analysis');
 
-        return res.status(200).json({
+        // Add timestamp and medications list to response
+        const response = {
             success: true,
-            analysis: analysis
-        });
+            analysis: analysis,
+            medications: medications,
+            timestamp: new Date().toISOString()
+        };
+
+        return res.status(200).json(response);
 
     } catch (error) {
         console.error('Error checking medication interactions:', error);
@@ -1174,6 +1227,341 @@ router.post('/combined-report', isAuthenticated, async (req, res) => {
     return res.status(500).json({ 
       success: false, 
       error: error.message || 'Failed to create combined report' 
+    });
+  }
+});
+
+// --- DEBUG ROUTE: Check medication data structure ---
+router.get('/debug/medications', isAuthenticated, async (req, res) => {
+  try {
+    if (!req.query.documentId) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing documentId query parameter' 
+      });
+    }
+
+    const userId = req.user.uid;
+    const documentId = req.query.documentId;
+    
+    console.log(`[DEBUG] Checking medications for document: ${documentId}`);
+    
+    // Get the document
+    const docRef = db.collection('documents').doc(documentId);
+    const docSnapshot = await docRef.get();
+    
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Document not found' 
+      });
+    }
+    
+    const docData = docSnapshot.data();
+    
+    // Check if document belongs to the user
+    if (docData.userId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Not authorized to access this document' 
+      });
+    }
+    
+    // Get medications from the document
+    const docMedications = docData.medications || [];
+    
+    // Get medications from the medications collection
+    const medQuery = db.collection('medications').where('documentId', '==', documentId);
+    const medSnapshot = await medQuery.get();
+    
+    const collectionMedications = [];
+    medSnapshot.forEach(doc => {
+      collectionMedications.push(doc.data());
+    });
+    
+    return res.status(200).json({
+      success: true,
+      document: {
+        id: documentId,
+        fileName: docData.fileName,
+        medicationsCount: docMedications.length
+      },
+      docMedications: docMedications,
+      collectionMedications: collectionMedications
+    });
+  } catch (error) {
+    console.error('[DEBUG] Error checking medications:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error checking medications' 
+    });
+  }
+});
+
+// --- MIGRATION ROUTE: Fix missing userId in medications ---
+router.get('/admin/fix-medications', isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    
+    // Check if user is authorized to run this migration
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (!userDoc.exists || !userDoc.data().isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Not authorized to run this migration' 
+      });
+    }
+    
+    console.log('[MIGRATION] Starting medication migration to add missing userId fields');
+    
+    // Get all medications without userId
+    const medicationsSnapshot = await db.collection('medications').get();
+    
+    let updatedCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+    
+    // Process in batches to avoid hitting Firestore limits
+    const batchSize = 500;
+    let batch = db.batch();
+    let operationCount = 0;
+    
+    for (const doc of medicationsSnapshot.docs) {
+      const medication = doc.data();
+      
+      // Skip if already has userId
+      if (medication.userId) {
+        skippedCount++;
+        continue;
+      }
+      
+      // Get the document this medication is linked to
+      if (!medication.documentId) {
+        console.log(`[MIGRATION] Medication ${doc.id} has no documentId, cannot determine owner`);
+        errorCount++;
+        continue;
+      }
+      
+      try {
+        const documentRef = db.collection('documents').doc(medication.documentId);
+        const documentSnapshot = await documentRef.get();
+        
+        if (!documentSnapshot.exists) {
+          console.log(`[MIGRATION] Document ${medication.documentId} not found for medication ${doc.id}`);
+          errorCount++;
+          continue;
+        }
+        
+        const documentData = documentSnapshot.data();
+        const documentUserId = documentData.userId;
+        
+        if (!documentUserId) {
+          console.log(`[MIGRATION] Document ${medication.documentId} has no userId`);
+          errorCount++;
+          continue;
+        }
+        
+        // Add userId to medication
+        batch.update(doc.ref, { userId: documentUserId });
+        updatedCount++;
+        operationCount++;
+        
+        // Commit batch if we reach the batch size
+        if (operationCount >= batchSize) {
+          await batch.commit();
+          console.log(`[MIGRATION] Committed batch of ${operationCount} updates`);
+          batch = db.batch();
+          operationCount = 0;
+        }
+      } catch (error) {
+        console.error(`[MIGRATION] Error processing medication ${doc.id}:`, error);
+        errorCount++;
+      }
+    }
+    
+    // Commit any remaining updates
+    if (operationCount > 0) {
+      await batch.commit();
+      console.log(`[MIGRATION] Committed final batch of ${operationCount} updates`);
+    }
+    
+    console.log(`[MIGRATION] Migration complete. Updated: ${updatedCount}, Errors: ${errorCount}, Skipped: ${skippedCount}`);
+    
+    return res.status(200).json({
+      success: true,
+      results: {
+        updated: updatedCount,
+        errors: errorCount,
+        skipped: skippedCount
+      }
+    });
+  } catch (error) {
+    console.error('[MIGRATION] Error running migration:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error running migration' 
+    });
+  }
+});
+
+// --- Fix User's Medications ---
+router.get('/fix-my-medications', isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    
+    console.log(`[Fix Medications] Starting medication fix for user: ${userId}`);
+    
+    // Get all user's documents to find their IDs
+    const userDocsSnapshot = await db.collection('documents')
+      .where('userId', '==', userId)
+      .get();
+    
+    if (userDocsSnapshot.empty) {
+      console.log(`[Fix Medications] User ${userId} has no documents`);
+      return res.status(200).json({ 
+        success: true,
+        message: 'No documents found to process',
+        results: {
+          updated: 0,
+          errors: 0,
+          skipped: 0
+        }
+      });
+    }
+    
+    // Collect all document IDs belonging to this user
+    const userDocumentIds = userDocsSnapshot.docs.map(doc => doc.id);
+    console.log(`[Fix Medications] Found ${userDocumentIds.length} documents for user ${userId}`);
+    
+    // Find all medications linked to these documents
+    const medicationsSnapshot = await db.collection('medications')
+      .where('documentId', 'in', userDocumentIds)
+      .get();
+    
+    console.log(`[Fix Medications] Found ${medicationsSnapshot.size} medications linked to user's documents`);
+    
+    let updatedCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
+    
+    // Process in batches
+    const batch = db.batch();
+    
+    medicationsSnapshot.forEach(doc => {
+      const medication = doc.data();
+      
+      // Skip if already has correct userId
+      if (medication.userId === userId) {
+        skippedCount++;
+        return;
+      }
+      
+      // Add or update userId
+      batch.update(doc.ref, { userId: userId });
+      updatedCount++;
+    });
+    
+    // Commit updates if any
+    if (updatedCount > 0) {
+      await batch.commit();
+      console.log(`[Fix Medications] Updated ${updatedCount} medications with user ID ${userId}`);
+    }
+    
+    console.log(`[Fix Medications] Fix complete. Updated: ${updatedCount}, Errors: ${errorCount}, Skipped: ${skippedCount}`);
+    
+    return res.status(200).json({
+      success: true,
+      message: 'Medication fix completed',
+      results: {
+        updated: updatedCount,
+        errors: errorCount,
+        skipped: skippedCount
+      }
+    });
+  } catch (error) {
+    console.error('[Fix Medications] Error fixing medications:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error fixing medications' 
+    });
+  }
+});
+
+// --- Manual Add Medication ---
+router.post('/add-medication', isAuthenticated, async (req, res) => {
+  try {
+    const userId = req.user.uid;
+    const { 
+      documentId, 
+      name, 
+      dosage = '', 
+      frequency = '', 
+      purpose = '', 
+      instructions = '', 
+      warnings = '' 
+    } = req.body;
+    
+    if (!documentId || !name) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Document ID and medication name are required' 
+      });
+    }
+    
+    // Verify document exists and belongs to user
+    const docRef = db.collection('documents').doc(documentId);
+    const docSnapshot = await docRef.get();
+    
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Document not found' 
+      });
+    }
+    
+    const docData = docSnapshot.data();
+    if (docData.userId !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        error: 'Not authorized to access this document' 
+      });
+    }
+    
+    // Create medication record
+    const medId = uuidv4();
+    const medicationData = {
+      id: medId,
+      userId: userId,
+      documentId: documentId,
+      documentName: docData.fileName || 'Unknown Document',
+      name: name,
+      dosage: dosage,
+      frequency: frequency,
+      purpose: purpose,
+      instructions: instructions,
+      warnings: warnings,
+      addedAt: admin.firestore.FieldValue.serverTimestamp(),
+      documentType: docData.documentType || 'MISCELLANEOUS',
+      manuallyAdded: true
+    };
+    
+    // Add to medications collection
+    await db.collection('medications').doc(medId).set(medicationData);
+    
+    console.log(`Manually added medication "${name}" for document ${documentId}`);
+    
+    return res.status(200).json({
+      success: true,
+      medication: {
+        ...medicationData,
+        addedAt: new Date().toISOString() // Convert for response
+      }
+    });
+  } catch (error) {
+    console.error('Error adding medication:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Server error adding medication' 
     });
   }
 });
