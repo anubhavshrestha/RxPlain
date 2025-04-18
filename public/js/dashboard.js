@@ -73,7 +73,7 @@ function initializeDashboardUI() {
         if (link.getAttribute('href') === path) {
             link.classList.add('bg-health-700', 'text-white');
             link.classList.remove('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
-        } else {
+    } else {
             link.classList.remove('bg-health-700', 'text-white');
             link.classList.add('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
         }
@@ -101,8 +101,8 @@ function loadDocumentsFromCache() {
                 // Ensure loading/empty states are correctly hidden/shown
                 loadingPlaceholder?.classList.add('hidden'); // Use optional chaining
                 if (currentlyDisplayedDocs.length > 0) {
-                    documentList.classList.remove('hidden');
-                    emptyState.classList.add('hidden');
+        documentList.classList.remove('hidden');
+        emptyState.classList.add('hidden');
                 } else {
                      documentList.classList.add('hidden');
                      showEmptyState(); // Use existing function for consistency
@@ -193,12 +193,12 @@ function renderDocumentList(docs) {
     console.log(`[Dashboard.js] Entering renderDocumentList with ${docs ? docs.length : 'null'} documents.`);
     if (!documentList || !emptyState) { // Add check for required elements
         console.error("[Dashboard.js] Cannot render document list: target elements missing.");
-        return;
-    }
-    
+            return;
+        }
+        
     // Clear previous content
-    documentList.innerHTML = '';
-    
+        documentList.innerHTML = '';
+        
     if (!docs || docs.length === 0) {
         console.log('[Dashboard.js] No documents to render. Showing empty state.');
         documentList.classList.add('hidden');
@@ -207,8 +207,8 @@ function renderDocumentList(docs) {
     }
     
     console.log('[Dashboard.js] Rendering document items...');
-    documentList.classList.remove('hidden');
-    emptyState.classList.add('hidden');
+        documentList.classList.remove('hidden');
+        emptyState.classList.add('hidden');
     
     // Sort documents by creation date (newest first) - Apply sorting here
     docs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -375,11 +375,11 @@ function addDocumentToList(documentData) {
         </div>
         <div class="flex space-x-2">
                 <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
-                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                </button>
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+            </button>
                 <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI" data-is-processed="${documentData.isProcessed || false}">
                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -391,15 +391,15 @@ function addDocumentToList(documentData) {
                     </svg>
                 </button>
                 <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}" title="Download">
-                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                </button>
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+            </button>
                 <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}" title="Delete">
-                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                </button>
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
             </div>
         </div>
     `;
@@ -546,19 +546,19 @@ async function deleteDocument(documentId, documentItem) {
             // Show some temporary deleting state on the item?
             documentItem.style.opacity = '0.5'; 
 
-            const response = await fetch(`/api/documents/${documentId}`, {
+        const response = await fetch(`/api/documents/${documentId}`, {
                 method: 'DELETE'
-            });
-
-            if (response.ok) {
+        });
+        
+        if (response.ok) {
                 // Remove document item from the list with animation
                 documentItem.classList.add('animate-fade-out'); // Add fade-out animation class
                 setTimeout(() => {
-                     documentItem.remove();
-                     // Show empty state if no documents left
-                     if (documentList.children.length === 0) {
-                         showEmptyState();
-                     }
+            documentItem.remove();
+            // Show empty state if no documents left
+            if (documentList.children.length === 0) {
+                showEmptyState();
+            }
                      // Update selected count if the deleted item was selected
                      if (selectedDocuments.has(documentId)) {
                          selectedDocuments.delete(documentId);
@@ -567,12 +567,12 @@ async function deleteDocument(documentId, documentItem) {
                 }, 500); // Match animation duration
 
                 Swal.fire('Deleted!', 'Your document has been deleted.', 'success');
-            } else {
-                const errorData = await response.json();
+        } else {
+            const errorData = await response.json();
                 throw new Error(errorData.error || `Server error: ${response.statusText}`);
-            }
-        } catch (error) {
-            console.error('Error deleting document:', error);
+        }
+    } catch (error) {
+        console.error('Error deleting document:', error);
             documentItem.style.opacity = '1'; // Restore opacity on error
             Swal.fire('Error', `Could not delete document: ${error.message}`, 'error');
         }
@@ -756,12 +756,12 @@ function setupSearch() {
         if (!hasVisibleItems && documentItems.length > 0) {
              if (currentEmptyState) {
                 currentEmptyState.innerHTML = `
-                    <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <p>No documents match your search.</p>
-                    <p>Try a different search term.</p>
-                `;
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <p>No documents match your search.</p>
+                <p>Try a different search term.</p>
+            `;
                 currentEmptyState.classList.remove('hidden');
              }
         } else if (hasVisibleItems) {
@@ -776,7 +776,7 @@ function renderMarkdown(markdown) {
     
     // Use the Marked.js library to render markdown
     if (typeof marked !== 'undefined') {
-        return marked.parse(markdown);
+    return marked.parse(markdown);
     }
     return '<p>Markdown renderer not available.</p>';
 }
@@ -825,7 +825,7 @@ function renderMedicationList(medications) {
             </div>
         `;
     });
-
+    
     html += '</div>';
     return html;
 }
@@ -926,14 +926,14 @@ async function simplifyDocument(documentId) {
                  // Remove processing indicator
                  if (processingIndicatorElement) processingIndicatorElement.remove();
 
-                const updatedStatus = document.createElement('span');
-                updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
-                updatedStatus.innerHTML = `
-                    <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                    </svg>
-                    Processed
-                `;
+            const updatedStatus = document.createElement('span');
+            updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
+            updatedStatus.innerHTML = `
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                Processed
+            `;
                 // Add the new processed status indicator after the title
                 const titleElement = statusElementContainer.querySelector('h3');
                  if (titleElement) {
@@ -941,7 +941,7 @@ async function simplifyDocument(documentId) {
                  }
                  // Update the button state
                  if(simplifyBtn) simplifyBtn.dataset.isProcessed = 'true';
-             }
+            }
             
             // Re-enable the simplify button
             if (simplifyBtn) {
@@ -956,7 +956,7 @@ async function simplifyDocument(documentId) {
         }
     } catch (error) {
         console.error('Error processing document:', error);
-
+        
          // Remove processing indicator if it exists
          if (processingIndicatorElement) processingIndicatorElement.remove();
 
@@ -974,7 +974,7 @@ async function simplifyDocument(documentId) {
             const titleElement = statusElementContainer.querySelector('h3');
              if (titleElement) {
                  titleElement.insertAdjacentElement('afterend', errorStatus);
-             }
+            }
         }
         
         // Re-enable the simplify button
@@ -1008,6 +1008,23 @@ async function openProcessedDocument(doc) {
         return; 
     }
 
+    // Determine how to display the original document based on file type
+    let originalContentHtml;
+    const isPdf = doc.fileName?.toLowerCase().endsWith('.pdf') || doc.fileType === 'application/pdf';
+    
+    if (isPdf) {
+        // Use object tag for PDFs which provides PDF viewer functionality
+        originalContentHtml = `
+            <object data="${doc.fileUrl}" type="application/pdf" width="100%" height="600">
+                <p>Your browser doesn't support embedded PDFs. 
+                <a href="${doc.fileUrl}" target="_blank">Click here to open the PDF</a>.</p>
+            </object>
+        `;
+    } else {
+        // Use img tag for images
+        originalContentHtml = `<img src="${doc.fileUrl}" alt="Original Document" class="max-w-full h-auto mx-auto">`;
+    }
+
     Swal.fire({
         title: `<span class="text-xl font-semibold">${doc.fileName}</span>`,
         html: `
@@ -1029,10 +1046,10 @@ async function openProcessedDocument(doc) {
                     ${doc.processedContent ? marked.parse(doc.processedContent) : '<p>No simplified content available.</p>'}
                 </div>
                 <div id="original-content" class="tab-content hidden p-4"> 
-                    <img src="${doc.fileUrl}" alt="Original Document" class="max-w-full h-auto mx-auto">
+                    ${originalContentHtml}
                 </div>
                 <div id="medications-content" class="tab-content hidden p-1"> 
-                     ${renderMedicationList(doc.medications)}
+                    ${renderMedicationList(doc.medications)}
                 </div>
             </div>
         `,
@@ -1067,7 +1084,7 @@ function switchTab(tabName) {
     console.log(`Switching tab to: ${tabName}`, { tabButtons, tabContents }); // Debug log
 
     // Hide all content panes
-    tabContents.forEach(content => {
+                    tabContents.forEach(content => {
         if (content) content.classList.add('hidden');
     });
 
@@ -1216,7 +1233,7 @@ async function createCombinedReport() {
                 });
             } else if (result.report && result.report.id) {
                 // If only report ID is returned
-                 Swal.fire({
+                Swal.fire({
                     icon: 'success',
                     title: 'Report Created',
                     text: 'Your combined report has been created successfully.',
@@ -1246,8 +1263,8 @@ async function createCombinedReport() {
             // Uncheck all document checkboxes visually
              const allDocCheckboxes = document.querySelectorAll('.select-doc-checkbox');
              allDocCheckboxes.forEach(checkbox => {
-                 checkbox.checked = false;
-             });
+                checkbox.checked = false;
+            });
             
             // Clear selected documents Set
             selectedDocuments.clear();
@@ -1282,7 +1299,7 @@ async function createCombinedReport() {
                 displayMessage = error.message;
              }
         }
-
+        
         Swal.fire({
             icon: 'error',
             title: 'Report Creation Failed',
@@ -1333,13 +1350,13 @@ function setupFilters() {
             
             // Apply status filter
             if (isVisible && statusValue !== 'all') {
-                if (statusValue === 'processed' && !isProcessed) {
-                    isVisible = false;
-                } else if (statusValue === 'processing' && !isProcessing) {
+            if (statusValue === 'processed' && !isProcessed) {
+                isVisible = false;
+            } else if (statusValue === 'processing' && !isProcessing) {
                      isVisible = false;
                 } else if (statusValue === 'unprocessed' && (isProcessed || isProcessing)) {
                     // Unprocessed means neither processed nor currently processing
-                    isVisible = false;
+                isVisible = false;
                 }
             }
             
@@ -1357,28 +1374,28 @@ function setupFilters() {
         // Show empty state if no documents match the filters
         const currentEmptyState = document.getElementById('empty-state'); // Re-get element
         if (currentEmptyState) {
-           if (visibleCount === 0 && documentItems.length > 0) {
+        if (visibleCount === 0 && documentItems.length > 0) {
                currentEmptyState.classList.remove('hidden');
                // Check if reset button already exists to avoid duplicates
                if (!currentEmptyState.querySelector('#reset-filters')) {
                    currentEmptyState.innerHTML = `
-                       <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                       </svg>
-                       <h3 class="mt-4 text-lg font-medium text-gray-900">No documents match your filters</h3>
-                       <p class="mt-2 text-gray-600">Try changing your search or filter settings.</p>
-                       <button id="reset-filters" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
-                           Reset Filters
-                       </button>
-                   `;
-                   
+                <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No documents match your filters</h3>
+                <p class="mt-2 text-gray-600">Try changing your search or filter settings.</p>
+                <button id="reset-filters" class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500">
+                    Reset Filters
+                </button>
+            `;
+            
                    // Add reset button listener inside the condition where it's created
                    const resetButton = currentEmptyState.querySelector('#reset-filters');
                    if (resetButton) {
                       resetButton.addEventListener('click', () => {
-                           searchInput.value = '';
-                           typeFilter.value = 'all';
-                           statusFilter.value = 'all';
+                searchInput.value = '';
+                typeFilter.value = 'all';
+                statusFilter.value = 'all';
                            filterDocuments(); // Re-apply filters after resetting
                        });
                    }
@@ -1480,7 +1497,7 @@ function setupFilterUI() {
     // Setup select all checkbox listener
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
     if (selectAllCheckbox) {
-       selectAllCheckbox.addEventListener('change', function() {
+    selectAllCheckbox.addEventListener('change', function() {
            const isChecked = this.checked;
            // Select only currently visible documents if filters are applied
            const visibleCheckboxes = documentList.querySelectorAll('div[data-id]:not(.hidden) .select-doc-checkbox'); 
@@ -1493,14 +1510,14 @@ function setupFilterUI() {
                }
            });
            // Update count after potentially changing multiple selections
-           updateSelectedCount(); 
-       });
+        updateSelectedCount();
+    });
     }
     
     // Setup create report button listener (already done in initializeDashboardUI, but ensure element exists)
     const createReportBtn = document.getElementById('create-report-btn');
     if (createReportBtn && !createReportBtn.getAttribute('listener-added')) { // Prevent adding multiple listeners
-       createReportBtn.addEventListener('click', createCombinedReport);
+    createReportBtn.addEventListener('click', createCombinedReport);
        createReportBtn.setAttribute('listener-added', 'true');
     }
     

@@ -1,71 +1,172 @@
-<div class="max-w-5xl mx-auto pt-8 pb-16">
-    <!-- Hero Section with Website Info -->
-    <div class="text-center mb-16">
-        <h1 class="text-5xl md:text-6xl font-bold mb-6 text-gray-800">Understand Your Medical Documents</h1>
-        <p class="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">RxPlain translates complex medical terminology into simple, everyday language, making your health information accessible and understandable.</p>
+<!-- Personalized Home Page with Conditional Content -->
+
+<!-- Guest View (for non-logged in users) -->
+<div id="guest-view">
+    <div class="max-w-5xl mx-auto pt-8 pb-16">
+        <!-- Hero Section with Website Info -->
+        <div class="text-center mb-16">
+            <h1 class="text-5xl md:text-6xl font-bold mb-6 text-gray-800">Understand Your Medical Documents</h1>
+            <p class="text-xl md:text-2xl text-gray-600 max-w-3xl mx-auto mb-8">RxPlain translates complex medical terminology into simple, everyday language, making your health information accessible and understandable.</p>
+            
+            <!-- Simplified Glowing Button -->
+            <div class="relative inline-block">
+                <a href="/dashboard" class="btn btn-primary text-lg px-8 py-4 rounded-full relative z-10 hover:bg-health-600 transition-all duration-300 hover:scale-105 hover:shadow-lg transform">
+                    Get Started
+                </a>
+                <div class="absolute -inset-1 bg-gradient-to-r from-health-400 via-health-500 to-health-600 rounded-full opacity-75 blur-lg animate-pulse"></div>
+            </div>
+        </div>
         
-        <!-- Simplified Glowing Button -->
-        <div class="relative inline-block">
-            <a href="/dashboard" class="btn btn-primary text-lg px-8 py-4 rounded-full relative z-10 hover:bg-health-600 transition-all duration-300 hover:scale-105 hover:shadow-lg transform">
-                Get Started
-            </a>
-            <div class="absolute -inset-1 bg-gradient-to-r from-health-400 via-health-500 to-health-600 rounded-full opacity-75 blur-lg animate-pulse"></div>
+        <!-- Features Section -->
+        <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-semibold mb-3">Simplified Medical Terms</h3>
+                <p class="text-gray-600">Convert complex medical terminology into easy-to-understand language that anyone can comprehend.</p>
+            </div>
+            
+            <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-semibold mb-3">Medication Interactions</h3>
+                <p class="text-gray-600">Check for potential interactions between your medications automatically to ensure your safety.</p>
+            </div>
+            
+            <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
+                    <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-semibold mb-3">Document Management</h3>
+                <p class="text-gray-600">Keep all your medical documents organized and accessible in one secure place.</p>
+            </div>
+        </div>
+        
+        <!-- Trust Indicators Section -->
+        <div class="mt-16 bg-white rounded-xl shadow-xl overflow-hidden p-8">
+            <div class="flex flex-col md:flex-row justify-center items-center space-y-6 md:space-y-0 md:space-x-12">
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                    <span class="font-medium">Secure & Private</span>
+                </div>
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <span class="font-medium">Fast Processing</span>
+                </div>
+                <div class="flex items-center text-sm text-gray-600">
+                    <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+                    </svg>
+                    <span class="font-medium">Multiple Languages</span>
+                </div>
+            </div>
         </div>
     </div>
-    
-    <!-- Features Section -->
-    <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-            </div>
-            <h3 class="text-2xl font-semibold mb-3">Simplified Medical Terms</h3>
-            <p class="text-gray-600">Convert complex medical terminology into easy-to-understand language that anyone can comprehend.</p>
+</div>
+
+<!-- Logged In User Dashboard View -->
+<div id="user-dashboard" class="hidden">
+    <div class="max-w-7xl mx-auto pt-6 pb-12">
+        <!-- Welcome Banner -->
+        <div class="bg-gradient-to-r from-health-600 to-health-700 text-white rounded-xl shadow-md p-6 mb-8">
+            <h1 class="text-3xl font-bold mb-2">Welcome, <span id="user-name">there</span>!</h1>
+            <p class="text-lg opacity-90">Your personal health dashboard is ready.</p>
         </div>
         
-        <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Documents</h3>
+                    <div class="w-10 h-10 rounded-full bg-health-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-baseline">
+                    <span id="doc-count" class="text-3xl font-bold text-gray-900">-</span>
+                    <span class="ml-2 text-gray-600">Uploaded</span>
+                </div>
+                <a href="/dashboard" class="mt-4 inline-block text-health-600 font-medium hover:text-health-700">
+                    Go to Dashboard →
+                </a>
             </div>
-            <h3 class="text-2xl font-semibold mb-3">Medication Interactions</h3>
-            <p class="text-gray-600">Check for potential interactions between your medications automatically to ensure your safety.</p>
+            
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Reports</h3>
+                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-baseline">
+                    <span id="report-count" class="text-3xl font-bold text-gray-900">-</span>
+                    <span class="ml-2 text-gray-600">Generated</span>
+                </div>
+                <a href="/reports" class="mt-4 inline-block text-blue-600 font-medium hover:text-blue-700">
+                    View Reports →
+                </a>
+            </div>
+            
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Medications</h3>
+                    <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                        </svg>
+                    </div>
+                </div>
+                <div class="flex items-baseline">
+                    <span id="meds-count" class="text-3xl font-bold text-gray-900">-</span>
+                    <span class="ml-2 text-gray-600">Extracted</span>
+                </div>
+                <a href="/medications" class="mt-4 inline-block text-red-600 font-medium hover:text-red-700">
+                    View Medications →
+                </a>
+            </div>
         </div>
         
-        <div class="bg-white p-8 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <div class="w-16 h-16 bg-health-100 rounded-full flex items-center justify-center mb-6">
-                <svg class="w-8 h-8 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
+        <!-- Recent Activity -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+            <div class="px-6 py-5 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-800">Recent Activity</h2>
             </div>
-            <h3 class="text-2xl font-semibold mb-3">Document Management</h3>
-            <p class="text-gray-600">Keep all your medical documents organized and accessible in one secure place.</p>
+            <div id="recent-activity" class="p-6">
+                <div class="flex items-center justify-center py-8">
+                    <div class="inline-block animate-spin h-8 w-8 border-4 border-gray-200 rounded-full border-t-health-500"></div>
+                    <span class="ml-3 text-gray-600">Loading your recent activity...</span>
+                </div>
+            </div>
         </div>
-    </div>
-    
-    <!-- Trust Indicators Section -->
-    <div class="mt-16 bg-white rounded-xl shadow-xl overflow-hidden p-8">
-        <div class="flex flex-col md:flex-row justify-center items-center space-y-6 md:space-y-0 md:space-x-12">
-            <div class="flex items-center text-sm text-gray-600">
-                <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <span class="font-medium">Secure & Private</span>
+        
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Upload Document</h3>
+                <p class="text-gray-600 mb-4">Upload a new medical document to process and extract information.</p>
+                <a href="/dashboard" class="btn btn-primary inline-block">Go to Upload</a>
             </div>
-            <div class="flex items-center text-sm text-gray-600">
-                <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                <span class="font-medium">Fast Processing</span>
-            </div>
-            <div class="flex items-center text-sm text-gray-600">
-                <svg class="w-6 h-6 mr-3 text-health-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
-                </svg>
-                <span class="font-medium">Multiple Languages</span>
+            
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Check Drug Interactions</h3>
+                <p class="text-gray-600 mb-4">Check for potential interactions between your medications.</p>
+                <a href="/medications" class="btn btn-primary inline-block">Check Medications</a>
             </div>
         </div>
     </div>
@@ -97,3 +198,321 @@
         box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
     }
 </style>
+
+<!-- JavaScript to handle conditional displaying -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Show guest view initially while checking auth
+        document.getElementById('guest-view').classList.remove('hidden');
+        document.getElementById('user-dashboard').classList.add('hidden');
+        
+        // URL parameter check for logout success 
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('logout')) {
+            console.log('User has been logged out successfully');
+            // Ensure guest view is shown
+            document.getElementById('guest-view').classList.remove('hidden');
+            document.getElementById('user-dashboard').classList.add('hidden');
+            // Maybe show a toast notification here if desired
+        }
+        
+        // Function to reset any cached state that might interfere with login/logout
+        const resetCachedState = () => {
+            // Clear any localStorage items that might be cached incorrectly
+            try {
+                sessionStorage.clear(); // Clear session storage
+            } catch (e) {
+                console.warn('Error clearing session storage:', e);
+            }
+        };
+        
+        // Reset any potential stale state
+        resetCachedState();
+        
+        // Check if Firebase initialization promise is available
+        if (typeof window.firebaseInitializationPromise === 'undefined') {
+            console.error('Firebase initialization promise is not available');
+            return; // Keep showing guest view if Firebase isn't available
+        }
+        
+        // Set up timeout in case Firebase initialization hangs
+        const authTimeoutId = setTimeout(() => {
+            console.warn('Firebase auth check timed out, staying on guest view');
+            document.getElementById('guest-view').classList.remove('hidden');
+            document.getElementById('user-dashboard').classList.add('hidden');
+        }, 5000); // 5 second timeout
+        
+        // Wait for Firebase to initialize before checking auth
+        window.firebaseInitializationPromise.then(() => {
+            // Now it's safe to use firebase.auth()
+            firebase.auth().onAuthStateChanged(user => {
+                // Clear the timeout since we got a response
+                clearTimeout(authTimeoutId);
+                
+                if (user) {
+                    // Verify the session cookie on the server side
+                    fetch('/api/verify-session')
+                        .then(response => {
+                            if (response.ok) {
+                                // User is authenticated both client and server side
+                                document.getElementById('guest-view').classList.add('hidden');
+                                showUserDashboard(user);
+                            } else {
+                                // Server says not authenticated, show guest view
+                                document.getElementById('guest-view').classList.remove('hidden');
+                                document.getElementById('user-dashboard').classList.add('hidden');
+                                console.log('Server session invalid, showing guest view');
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error verifying session:', error);
+                            // On error, default to guest view
+                            document.getElementById('guest-view').classList.remove('hidden');
+                            document.getElementById('user-dashboard').classList.add('hidden');
+                        });
+                } else {
+                    // User is not logged in, show guest view
+                    document.getElementById('guest-view').classList.remove('hidden');
+                    document.getElementById('user-dashboard').classList.add('hidden');
+                    console.log('User is not logged in, showing guest view');
+                }
+            });
+        }).catch(error => {
+            // Clear the timeout if there's an error
+            clearTimeout(authTimeoutId);
+            
+            console.error('Error initializing Firebase:', error);
+            // Keep showing guest view on error
+            document.getElementById('guest-view').classList.remove('hidden');
+            document.getElementById('user-dashboard').classList.add('hidden');
+        });
+        
+        // Show personalized dashboard
+        const showUserDashboard = (user) => {
+            // Show user dashboard
+            document.getElementById('user-dashboard').classList.remove('hidden');
+            
+            // Set user name if available
+            if (user.displayName) {
+                document.getElementById('user-name').textContent = user.displayName;
+            }
+            
+            // Load document count
+            loadDocumentCount();
+            
+            // Load report count
+            loadReportCount();
+            
+            // Load medications count
+            loadMedicationsCount();
+            
+            // Load recent activity
+            loadRecentActivity();
+        };
+        
+        // Load document count
+        const loadDocumentCount = () => {
+            const db = firebase.firestore();
+            db.collection('documents')
+                .where('userId', '==', firebase.auth().currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    document.getElementById('doc-count').textContent = snapshot.size;
+                })
+                .catch(error => {
+                    console.error('Error fetching document count:', error);
+                    document.getElementById('doc-count').textContent = '?';
+                });
+        };
+        
+        // Load report count
+        const loadReportCount = () => {
+            const db = firebase.firestore();
+            db.collection('reports')
+                .where('userId', '==', firebase.auth().currentUser.uid)
+                .get()
+                .then(snapshot => {
+                    document.getElementById('report-count').textContent = snapshot.size;
+                })
+                .catch(error => {
+                    console.error('Error fetching report count:', error);
+                    document.getElementById('report-count').textContent = '?';
+                });
+        };
+        
+        // Load medications count
+        const loadMedicationsCount = () => {
+            fetch('/api/documents/medications/all')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('meds-count').textContent = data.medications.length;
+                    } else {
+                        document.getElementById('meds-count').textContent = '?';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching medications count:', error);
+                    document.getElementById('meds-count').textContent = '?';
+                });
+        };
+        
+        // Load recent activity
+        const loadRecentActivity = () => {
+            const db = firebase.firestore();
+            const userId = firebase.auth().currentUser.uid;
+            const activityContainer = document.getElementById('recent-activity');
+            
+            // Get recent documents
+            const recentDocsPromise = db.collection('documents')
+                .where('userId', '==', userId)
+                .orderBy('createdAt', 'desc')
+                .limit(3)
+                .get();
+                
+            // Get recent reports
+            const recentReportsPromise = db.collection('reports')
+                .where('userId', '==', userId)
+                .orderBy('createdAt', 'desc')
+                .limit(3)
+                .get();
+                
+            // Combine results
+            Promise.all([recentDocsPromise, recentReportsPromise])
+                .then(([docSnapshot, reportSnapshot]) => {
+                    // Format for display
+                    let activities = [];
+                    
+                    docSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        activities.push({
+                            type: 'document',
+                            title: data.fileName || 'Unnamed Document',
+                            date: data.createdAt?.toDate() || new Date(),
+                            id: doc.id
+                        });
+                    });
+                    
+                    reportSnapshot.forEach(doc => {
+                        const data = doc.data();
+                        activities.push({
+                            type: 'report',
+                            title: data.title || 'Unnamed Report',
+                            date: data.createdAt?.toDate() || new Date(),
+                            id: doc.id
+                        });
+                    });
+                    
+                    // Sort by date (newest first)
+                    activities.sort((a, b) => b.date - a.date);
+                    
+                    // Limit to 5 activities
+                    activities = activities.slice(0, 5);
+                    
+                    // Display activities
+                    if (activities.length === 0) {
+                        activityContainer.innerHTML = `
+                            <div class="text-center py-4 text-gray-500">
+                                <p>No recent activity found.</p>
+                                <p>Start by uploading your first document!</p>
+                            </div>
+                        `;
+                    } else {
+                        let activityHTML = `<ul class="divide-y divide-gray-200">`;
+                        
+                        activities.forEach(activity => {
+                            const formattedDate = activity.date.toLocaleDateString('en-US', {
+                                month: 'short', 
+                                day: 'numeric',
+                                year: 'numeric'
+                            });
+                            
+                            const timeAgo = getTimeAgo(activity.date);
+                            
+                            let icon, link, bgColor;
+                            
+                            if (activity.type === 'document') {
+                                icon = `<svg class="w-6 h-6 text-health-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>`;
+                                link = `/dashboard`;
+                                bgColor = 'bg-health-100 text-health-800';
+                            } else {
+                                icon = `<svg class="w-6 h-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>`;
+                                link = `/reports/${activity.id}`;
+                                bgColor = 'bg-blue-100 text-blue-800';
+                            }
+                            
+                            activityHTML += `
+                                <li class="py-4">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="flex-shrink-0 w-10 h-10 rounded-full ${activity.type === 'document' ? 'bg-health-100' : 'bg-blue-100'} flex items-center justify-center">
+                                            ${icon}
+                                        </div>
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900 truncate">
+                                                ${activity.title}
+                                            </p>
+                                            <p class="text-sm text-gray-500">
+                                                ${activity.type === 'document' ? 'Uploaded' : 'Generated'} ${timeAgo}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <a href="${link}" class="inline-flex items-center shadow-sm px-2.5 py-0.5 border border-gray-300 text-sm leading-5 font-medium rounded-full text-gray-700 bg-white hover:bg-gray-50">
+                                                View
+                                            </a>
+                                        </div>
+                                    </div>
+                                </li>
+                            `;
+                        });
+                        
+                        activityHTML += `</ul>`;
+                        activityContainer.innerHTML = activityHTML;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching recent activity:', error);
+                    activityContainer.innerHTML = `
+                        <div class="text-center py-4 text-red-500">
+                            <p>Error loading recent activity.</p>
+                        </div>
+                    `;
+                });
+        };
+        
+        // Helper function to get time ago
+        const getTimeAgo = (date) => {
+            const seconds = Math.floor((new Date() - date) / 1000);
+            
+            let interval = Math.floor(seconds / 31536000);
+            if (interval >= 1) {
+                return interval === 1 ? '1 year ago' : `${interval} years ago`;
+            }
+            
+            interval = Math.floor(seconds / 2592000);
+            if (interval >= 1) {
+                return interval === 1 ? '1 month ago' : `${interval} months ago`;
+            }
+            
+            interval = Math.floor(seconds / 86400);
+            if (interval >= 1) {
+                return interval === 1 ? '1 day ago' : `${interval} days ago`;
+            }
+            
+            interval = Math.floor(seconds / 3600);
+            if (interval >= 1) {
+                return interval === 1 ? '1 hour ago' : `${interval} hours ago`;
+            }
+            
+            interval = Math.floor(seconds / 60);
+            if (interval >= 1) {
+                return interval === 1 ? '1 minute ago' : `${interval} minutes ago`;
+            }
+            
+            return 'just now';
+        };
+    });
+</script>

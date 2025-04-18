@@ -59,15 +59,56 @@ function initializeFirebase() {
   // Login function
   window.login = async (email, password) => {
     try {
+      console.log('Login attempt for:', email);
+      
+      // Force Firebase to reset - this helps with stale auth states
+      if (firebase.apps.length) {
+        console.log('Resetting Firebase authentication state');
+        await firebase.app().delete();
+        await fetchFirebaseConfig(); // Re-initialize Firebase
+        
+        // Wait for initialization to complete
+        await window.firebaseInitializationPromise;
+      }
+      
+      // Get the Firebase auth instance again after re-initialization
+      const auth = firebase.auth();
+      
+      // Clear any previous auth states
+      if (auth.currentUser) {
+        console.log('Cleaning up previous auth state before login');
+        try {
+          await auth.signOut();
+        } catch (e) {
+          console.warn('Error clearing previous auth state:', e);
+        }
+      }
+      
+      // Perform login
+      console.log('Attempting Firebase authentication');
       const userCredential = await auth.signInWithEmailAndPassword(email, password);
+      console.log('Login successful, creating session');
+      
       // Get the ID token and create session
-      const idToken = await userCredential.user.getIdToken();
-      await fetch('/api/session', {
+      const idToken = await userCredential.user.getIdToken(true); // Force refresh token
+      console.log('Got fresh ID token, establishing session');
+      
+      const sessionResponse = await fetch('/api/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken })
+        body: JSON.stringify({ idToken }),
+        credentials: 'same-origin' // Include cookies in the request
       });
-      window.location.href = '/dashboard';
+      
+      if (!sessionResponse.ok) {
+        console.error('Failed to create session:', await sessionResponse.text());
+        throw new Error('Failed to create session');
+      }
+      
+      console.log('Session established successfully');
+      
+      // Return success, let the login page handle redirect
+      return { success: true };
     } catch (error) {
       console.error('Login error:', error);
       return { success: false, error: error.message };
@@ -120,10 +161,31 @@ function initializeFirebase() {
   // Logout function
   window.logout = async () => {
     try {
+      // First clear the session cookie from the server
+      await fetch('/api/logout', {
+        method: 'POST',
+        credentials: 'same-origin' // Include cookies in the request
+      });
+      
+      // Then sign out from Firebase
       await auth.signOut();
-      window.location.href = '/';
+      
+      // Force clear any cached data in localStorage
+      const cachePrefixes = ['report_cache_', 'reports_list_cache', 'interaction_cache_'];
+      Object.keys(localStorage).forEach(key => {
+        for (const prefix of cachePrefixes) {
+          if (key.startsWith(prefix)) {
+            localStorage.removeItem(key);
+          }
+        }
+      });
+      
+      // Redirect to home page
+      window.location.href = '/?logout=success';
     } catch (error) {
       console.error('Logout error:', error);
+      // Still redirect to home page even if there's an error
+      window.location.href = '/';
     }
   };
 
@@ -257,5 +319,5 @@ function initializeFirebase() {
   initializeGlobalUI(); // Call this function after defining it
 }
 
-// Initialize on page load
+// Fetch Firebase config on page load
 fetchFirebaseConfig();

@@ -46,6 +46,14 @@ export const isAuthenticated = async (req, res, next) => {
 // Middleware to redirect if user is already authenticated
 export const redirectIfAuthenticated = async (req, res, next) => {
   try {
+    // Check if this is a re-redirect loop (add a counter to query params)
+    const redirectAttempt = parseInt(req.query.redirect_attempt || '0');
+    if (redirectAttempt > 2) {
+      console.log('Detected potential redirect loop, clearing session and proceeding to login');
+      res.clearCookie('session');
+      return next();
+    }
+    
     const sessionCookie = req.cookies.session || '';
     if (!sessionCookie) {
       return next();
@@ -63,8 +71,10 @@ export const redirectIfAuthenticated = async (req, res, next) => {
     }
     
     // If session is valid and user has a profile, redirect to dashboard
+    console.log('Valid session detected, redirecting to dashboard');
     return res.redirect('/dashboard');
   } catch (error) {
+    console.error('redirectIfAuthenticated error:', error);
     // Invalid cookie, proceed to login/register page
     res.clearCookie('session');
     next();

@@ -8,7 +8,9 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "build:css": "npx tailwindcss -i src/input.css -o public/css/styles.css",
-    "watch:css": "npx tailwindcss -i src/input.css -o public/css/styles.css --watch"
+    "watch:css": "npx tailwindcss -i src/input.css -o public/css/styles.css --watch",
+    "test": "jest --config jest.config.cjs",
+    "test:coverage": "jest --config jest.config.cjs --coverage"
   },
   "keywords": [],
   "author": "",
@@ -26,12 +28,16 @@
     "multer": "^1.4.5-lts.2",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^3.11.174",
-    "tesseract.js": "^6.0.1",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.22.5",
+    "@babel/preset-env": "^7.26.9",
+    "@jest/globals": "^29.5.0",
     "@tailwindcss/postcss": "^4.1.4",
     "autoprefixer": "^10.4.21",
+    "babel-jest": "^29.5.0",
+    "jest": "^29.5.0",
     "nodemon": "^3.1.9",
     "postcss": "^8.5.3",
     "postcss-cli": "^11.0.1",

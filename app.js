@@ -97,12 +97,35 @@ app.get('/', (req, res) => {
   res.render('home', { title: 'RxPlain - Prescriptions Explained' });
 });
 
-app.get('/login', redirectIfAuthenticated, (req, res) => {
-  res.render('login', { title: 'Login - RxPlain' });
+app.get('/login', (req, res, next) => {
+  // Check if this is a force logout request
+  if (req.query.forcelogout === 'true') {
+    console.log('Force logout detected, bypassing redirect checks');
+    // Get the redirect attempt count
+    const redirectAttempt = parseInt(req.query.redirect_attempt || '0');
+    
+    // Pass to template with forcelogout flag
+    return res.render('login', { 
+      title: 'Login - RxPlain',
+      redirectAttempt: redirectAttempt + 1,
+      forceLogout: true
+    });
+  }
+  
+  // Normal flow - use the redirectIfAuthenticated middleware
+  redirectIfAuthenticated(req, res, next);
+}, (req, res) => {
+  // Final handler after middleware
+  const redirectAttempt = parseInt(req.query.redirect_attempt || '0');
+  
+  res.render('login', { 
+    title: 'Login - RxPlain',
+    redirectAttempt: redirectAttempt + 1
+  });
 });
 
 app.get('/register', redirectIfAuthenticated, (req, res) => {
-  res.render('register', { title: 'Create Account - RxPlain' });
+  res.render('register', { title: 'Register - RxPlain' });
 });
 
 // Protected Routes

@@ -15,16 +15,33 @@ export const createSession = async (req, res) => {
     // Get the ID token from the request body
     const { idToken } = req.body;
     if (!idToken) {
+      console.error('No ID token provided in request');
       return res.status(400).json({ error: 'ID token required' });
     }
 
+    console.log('Verifying ID token');
     // Verify the ID token
-    const decodedToken = await auth.verifyIdToken(idToken);
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(idToken);
+      console.log('ID token verified for user:', decodedToken.uid);
+    } catch (verifyError) {
+      console.error('ID token verification failed:', verifyError);
+      return res.status(401).json({ error: 'Invalid ID token', details: verifyError.message });
+    }
     
+    console.log('Creating session cookie');
     // Create a session cookie
-    const sessionCookie = await auth.createSessionCookie(idToken, { 
-      expiresIn: SESSION_EXPIRES_IN 
-    });
+    let sessionCookie;
+    try {
+      sessionCookie = await auth.createSessionCookie(idToken, { 
+        expiresIn: SESSION_EXPIRES_IN 
+      });
+      console.log('Session cookie created successfully');
+    } catch (cookieError) {
+      console.error('Session cookie creation failed:', cookieError);
+      return res.status(401).json({ error: 'Failed to create session cookie', details: cookieError.message });
+    }
 
     // Set cookie options
     const options = {
@@ -35,12 +52,49 @@ export const createSession = async (req, res) => {
       path: '/'  // Ensure cookie is available across all paths
     };
 
+    // Clear any existing cookies first
+    res.clearCookie('session');
+    
     // Set the cookie
+    console.log('Setting session cookie with options:', JSON.stringify(options));
     res.cookie('session', sessionCookie, options);
-    res.status(200).json({ success: true });
+    res.status(200).json({ success: true, uid: decodedToken.uid });
   } catch (error) {
     console.error('Session creation error:', error);
-    res.status(401).json({ error: 'Unauthorized' });
+    res.status(500).json({ error: 'Session creation failed', details: error.message });
+  }
+};
+
+// Verify if session is valid
+export const verifySession = async (req, res) => {
+  try {
+    const sessionCookie = req.cookies.session || '';
+    if (!sessionCookie) {
+      return res.status(401).json({ error: 'No session cookie found' });
+    }
+    
+    // Verify the session cookie
+    const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    
+    // Check if user has a profile in Firestore
+    const userDoc = await db.collection('users').doc(decodedClaims.uid).get();
+    
+    if (!userDoc.exists) {
+      // User is authenticated but doesn't have a profile
+      res.clearCookie('session');
+      return res.status(401).json({ error: 'User profile not found' });
+    }
+    
+    // Session is valid and user has a profile
+    return res.status(200).json({ 
+      success: true, 
+      uid: decodedClaims.uid,
+      displayName: userDoc.data().displayName || null
+    });
+  } catch (error) {
+    console.error('Session verification error:', error);
+    res.clearCookie('session');
+    return res.status(401).json({ error: 'Invalid session' });
   }
 };
 
@@ -50,59 +104,38 @@ export const logout = (req, res) => {
   res.redirect('/login');
 };
 
-// Create user profile in Firestore after registration
+// Create user profile in Firestore
 export const createUserProfile = async (req, res) => {
   try {
-    const { uid, email, username, displayName, role } = req.body;
+    const { uid, email, displayName, username, role, specialization, licenseNumber } = req.body;
     
-    // Validate required fields
-    if (!uid || !email || !username || !displayName || !role) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    if (!uid || !email) {
+      return res.status(400).json({ error: 'User ID and email are required' });
     }
     
-    // Validate role
-    if (!['patient', 'doctor'].includes(role)) {
-      return res.status(400).json({ error: 'Invalid role' });
-    }
-    
-    // Check username availability
-    const usernameSnapshot = await db.collection('users')
-      .where('username', '==', username)
-      .get();
-    
-    if (!usernameSnapshot.empty) {
-      return res.status(400).json({ error: 'Username already taken' });
-    }
-    
-    // Prepare user data
+    // Create user data
     const userData = {
+      uid,
       email,
-      username,
-      displayName,
-      role,
+      displayName: displayName || email.split('@')[0], // Default to email prefix if no name
+      username: username || email.split('@')[0],
+      role: role || 'patient',
       createdAt: new Date(),
-      documents: []
+      updatedAt: new Date()
     };
     
-    // Add role-specific fields
-    if (role === 'doctor') {
-      const { specialization, licenseNumber } = req.body;
-      if (!specialization || !licenseNumber) {
-        return res.status(400).json({ error: 'Missing doctor-specific fields' });
-      }
+    // Add doctor-specific fields if role is doctor
+    if (role === 'doctor' && specialization && licenseNumber) {
       userData.specialization = specialization;
       userData.licenseNumber = licenseNumber;
-    } else {
-      // Initialize empty linked doctors array for patients
-      userData.linkedDoctors = [];
     }
     
-    // Save user data to Firestore
+    // Save to Firestore
     await db.collection('users').doc(uid).set(userData);
     
-    res.status(201).json({ success: true });
+    res.status(201).json({ success: true, user: userData });
   } catch (error) {
-    console.error('Error creating user profile:', error);
-    res.status(500).json({ error: 'Error creating user profile' });
+    console.error('User profile creation error:', error);
+    res.status(500).json({ error: 'Failed to create user profile' });
   }
 };
