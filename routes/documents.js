@@ -591,6 +591,60 @@ router.delete('/reports/:reportId', isAuthenticated, async (req, res) => {
   }
 });
 
+// --- Get User's Medication Schedules ---
+router.get('/med-schedules', isAuthenticated, async (req, res) => {
+    console.log('API route /med-schedules hit, user ID:', req.user.uid);
+    console.log('Full URL path:', req.originalUrl);
+    console.log('Route handler params:', req.params);
+    try {
+        const userId = req.user.uid;
+        // Detailed logging to debug the issue
+        console.log(`Attempting to fetch medication schedules for user ${userId}`);
+        console.log(`Collection path: medicationSchedules`);
+        // Get all schedules for this user
+        const schedulesRef = db.collection('medicationSchedules')
+            .where('userId', '==', userId)
+            .orderBy('createdAt', 'desc');
+        console.log('Query built, executing...');
+        const schedulesSnapshot = await schedulesRef.get();
+        console.log(`Query executed, found ${schedulesSnapshot.size} documents`);
+        if (schedulesSnapshot.empty) {
+            console.log('No schedules found for this user');
+            return res.status(200).json({ 
+                success: true, 
+                message: 'No medication schedules found',
+                schedules: [] 
+            });
+        }
+        // Process schedules
+        const schedules = [];
+        schedulesSnapshot.forEach(doc => {
+            console.log(`Processing schedule document: ${doc.id}`);
+            const scheduleData = doc.data();
+            // Convert timestamps to ISO strings
+            if (scheduleData.createdAt) {
+                scheduleData.createdAt = scheduleData.createdAt.toDate().toISOString();
+            }
+            if (scheduleData.updatedAt) {
+                scheduleData.updatedAt = scheduleData.updatedAt.toDate().toISOString();
+            }
+            schedules.push(scheduleData);
+        });
+        console.log(`Successfully processed ${schedules.length} schedule documents`);
+        return res.status(200).json({
+            success: true,
+            count: schedules.length,
+            schedules: schedules
+        });
+    } catch (error) {
+        console.error('Error fetching medication schedules:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error while fetching medication schedules: ' + error.message
+        });
+    }
+});
+
 // Get document by ID with processed content
 router.get('/:documentId', isAuthenticated, async (req, res) => {
   try {
@@ -1049,6 +1103,321 @@ router.post('/medications/check-interactions', isAuthenticated, async (req, res)
     }
 });
 // --- END NEW ROUTE --- 
+
+// --- Generate Medication Schedule --- 
+router.post('/medications/generate-schedule', isAuthenticated, async (req, res) => {
+    console.log('API route /medications/generate-schedule hit, user ID:', req.user.uid);
+    try {
+        const { medications } = req.body;
+        const userId = req.user.uid;
+
+        if (!medications || !Array.isArray(medications) || medications.length === 0) {
+            return res.status(400).json({ success: false, error: 'Please provide at least one medication to schedule.' });
+        }
+
+        console.log(`Generating schedule for user ${userId} with ${medications.length} medications`);
+
+        // First check for severe interactions that would prohibit scheduling
+        if (medications.length > 1) {
+            // Enhanced prompt for interaction check specifically for scheduling
+            const interactionCheckPrompt = `
+                Analyze ONLY the potential SEVERE or HIGH-RISK drug interactions between the following medications:
+                ${medications.map(med => {
+                    // Check if we have a structured medication object or just a name
+                    if (typeof med === 'object') {
+                        return `- ${med.name || med.Name?.Generic || med.Name?.Brand || med.SuggestedName}${med.dosage ? ` (${med.dosage})` : ''}`;
+                    } else {
+                        return `- ${med}`;
+                    }
+                }).join('\n')}
+
+                Return ONLY a JSON object with this format:
+                {
+                  "hasSevereInteraction": true/false,
+                  "severeInteractions": [
+                    {
+                      "pair": ["Drug A", "Drug B"],
+                      "warning": "Description of the severe interaction"
+                    }
+                  ]
+                }
+                
+                Only include interactions that are classified as severe or high-risk that would require doctor consultation before taking together.
+            `;
+
+            // Call Gemini for interaction check
+            const model = geminiProcessor.model;
+            const interactionResult = await model.generateContent(interactionCheckPrompt);
+            const interactionText = interactionResult.response.text();
+            
+            let interactionData = { hasSevereInteraction: false, severeInteractions: [] };
+            
+            try {
+                // Extract JSON from the response
+                const jsonMatch = interactionText.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const parsedJson = JSON.parse(jsonMatch[0]);
+                    if (parsedJson.hasSevereInteraction !== undefined) {
+                        interactionData = parsedJson;
+                    }
+                }
+            } catch (parseError) {
+                console.error('Error parsing interaction check response:', parseError);
+            }
+            
+            // If severe interactions exist, return them to the client with a warning
+            if (interactionData.hasSevereInteraction && interactionData.severeInteractions.length > 0) {
+                console.log('Severe interactions detected, notifying user');
+                return res.status(200).json({
+                    success: true,
+                    requiresWarning: true,
+                    interactions: interactionData.severeInteractions,
+                    message: "Severe medication interactions detected. Please consult your healthcare provider before proceeding with scheduling."
+                });
+            }
+        }
+
+        // Now generate the schedule
+        // Prepare the medications data to include all relevant fields
+        const scheduleMedications = medications.map(med => {
+            // Handle both simple name strings and full medication objects
+            if (typeof med === 'object') {
+                return {
+                    name: med.name || med.Name?.Generic || med.Name?.Brand || med.SuggestedName,
+                    dosage: med.dosage || med.Dosage || '',
+                    frequency: med.frequency || med.Frequency || '',
+                    instructions: med.instructions || med['Special Instructions'] || '',
+                    purpose: med.purpose || med.Purpose || '',
+                    warnings: med.warnings || med['Important Side Effects'] || ''
+                };
+            } else {
+                return { name: med };
+            }
+        });
+
+        const schedulePrompt = `
+            Create a detailed daily medication schedule for a patient taking the following medications:
+            ${scheduleMedications.map(med => {
+                let medString = `- ${med.name}`;
+                if (med.dosage) medString += ` (${med.dosage})`;
+                if (med.frequency) medString += `, ${med.frequency}`;
+                if (med.instructions) medString += `, ${med.instructions}`;
+                return medString;
+            }).join('\n')}
+
+            Consider the following when creating the schedule:
+            1. Group medications by time of day (morning, afternoon, evening, bedtime)
+            2. Consider optimal timing for each medication (with food, empty stomach, etc.)
+            3. Space out medications that shouldn't be taken together
+            4. Include specific timing recommendations (e.g., "8:00 AM with breakfast")
+            5. Add notes for special instructions (e.g., avoid grapefruit juice)
+            
+            Return ONLY a JSON object with this structure:
+            {
+              "dailySchedule": [
+                {
+                  "timeOfDay": "Morning",
+                  "suggestedTime": "8:00 AM",
+                  "withFood": true,
+                  "medications": [
+                    {
+                      "name": "Medication Name",
+                      "dosage": "Dosage if available",
+                      "specialInstructions": "Any specific instructions for taking this medication"
+                    }
+                  ]
+                }
+              ],
+              "weeklyAdjustments": [
+                {
+                  "day": "Monday",
+                  "adjustments": "Description of any adjustments needed on this day"
+                }
+              ],
+              "specialNotes": "Any overall considerations or warnings about the schedule",
+              "recommendedFollowup": "When the patient should follow up with their doctor"
+            }
+            
+            If any medications need special timing or have complex schedules (e.g., different dosages on different days), include these details in the weeklyAdjustments array.
+        `;
+
+        // Call Gemini for schedule generation
+        const model = geminiProcessor.model;
+        const scheduleResult = await model.generateContent(schedulePrompt);
+        const scheduleText = scheduleResult.response.text();
+        
+        let scheduleFormat = {
+            dailySchedule: [],
+            weeklyAdjustments: [],
+            specialNotes: "Please consult your healthcare provider before following this schedule.",
+            recommendedFollowup: "Schedule a follow-up with your doctor to review this medication plan."
+        };
+        
+        try {
+            // Extract JSON from the response
+            const jsonMatch = scheduleText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                const parsedJson = JSON.parse(jsonMatch[0]);
+                if (parsedJson.dailySchedule) {
+                    scheduleFormat = parsedJson;
+                }
+            }
+        } catch (parseError) {
+            console.error('Error parsing schedule generation response:', parseError);
+            return res.status(500).json({
+                success: false,
+                error: 'Failed to parse the generated schedule.'
+            });
+        }
+        
+        // Create a new schedule record in Firestore
+        const scheduleId = uuidv4();
+        const scheduleData = {
+            id: scheduleId,
+            userId: userId,
+            medications: scheduleMedications,
+            schedule: scheduleFormat,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            name: `Medication Schedule (${new Date().toLocaleDateString()})`,
+            active: true
+        };
+        
+        // Save to Firestore
+        await db.collection('medicationSchedules').doc(scheduleId).set(scheduleData);
+        
+        console.log(`Created new medication schedule ${scheduleId} for user ${userId}`);
+        
+        // Return the schedule data
+        return res.status(200).json({
+            success: true,
+            schedule: {
+                ...scheduleData,
+                createdAt: new Date().toISOString() // Convert for response
+            }
+        });
+
+    } catch (error) {
+        console.error('Error generating medication schedule:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error while generating medication schedule'
+        });
+    }
+});
+
+// --- Update Medication Schedule ---
+router.put('/med-schedules/:scheduleId', isAuthenticated, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { scheduleId } = req.params;
+        const { name, active } = req.body;
+        
+        // Get the schedule
+        const scheduleRef = db.collection('medicationSchedules').doc(scheduleId);
+        const scheduleSnapshot = await scheduleRef.get();
+        
+        if (!scheduleSnapshot.exists) {
+            return res.status(404).json({
+                success: false,
+                error: 'Schedule not found'
+            });
+        }
+        
+        const scheduleData = scheduleSnapshot.data();
+        
+        // Check if the schedule belongs to the user
+        if (scheduleData.userId !== userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to access this schedule'
+            });
+        }
+        
+        // Update the schedule
+        const updateData = {
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+        
+        if (name !== undefined) {
+            updateData.name = name;
+        }
+        
+        if (active !== undefined) {
+            updateData.active = active;
+        }
+        
+        await scheduleRef.update(updateData);
+        
+        // Get the updated schedule
+        const updatedScheduleSnapshot = await scheduleRef.get();
+        const updatedScheduleData = updatedScheduleSnapshot.data();
+        
+        // Convert timestamps to ISO strings
+        if (updatedScheduleData.createdAt) {
+            updatedScheduleData.createdAt = updatedScheduleData.createdAt.toDate().toISOString();
+        }
+        if (updatedScheduleData.updatedAt) {
+            updatedScheduleData.updatedAt = updatedScheduleData.updatedAt.toDate().toISOString();
+        }
+        
+        return res.status(200).json({
+            success: true,
+            schedule: updatedScheduleData
+        });
+    } catch (error) {
+        console.error('Error updating medication schedule:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error while updating medication schedule'
+        });
+    }
+});
+
+// --- Delete Medication Schedule ---
+router.delete('/med-schedules/:scheduleId', isAuthenticated, async (req, res) => {
+    try {
+        const userId = req.user.uid;
+        const { scheduleId } = req.params;
+        
+        // Get the schedule
+        const scheduleRef = db.collection('medicationSchedules').doc(scheduleId);
+        const scheduleSnapshot = await scheduleRef.get();
+        
+        if (!scheduleSnapshot.exists) {
+            return res.status(404).json({
+                success: false,
+                error: 'Schedule not found'
+            });
+        }
+        
+        const scheduleData = scheduleSnapshot.data();
+        
+        // Check if the schedule belongs to the user
+        if (scheduleData.userId !== userId) {
+            return res.status(403).json({
+                success: false,
+                error: 'Not authorized to access this schedule'
+            });
+        }
+        
+        // Delete the schedule
+        await scheduleRef.delete();
+        
+        return res.status(200).json({
+            success: true,
+            message: 'Schedule deleted successfully'
+        });
+    } catch (error) {
+        console.error('Error deleting medication schedule:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error while deleting medication schedule'
+        });
+    }
+});
+
+// --- END NEW ROUTE ---
 
 // Create a combined report from multiple documents
 router.post('/combined-report', isAuthenticated, async (req, res) => {

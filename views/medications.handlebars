@@ -8,6 +8,33 @@
 
     <!-- Main Content -->
     <div class="bg-white p-6 rounded-lg shadow">
+        <!-- Top Controls -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">My Medications</h1>
+            <div class="flex space-x-3">
+                <button id="check-interactions-btn" disabled class="bg-green-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Check Drug Interactions
+                    <span id="selected-count" class="ml-2 bg-white bg-opacity-20 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </button>
+                <button id="create-schedule-btn" disabled class="bg-blue-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Create Schedule
+                    <span id="schedule-selected-count" class="ml-2 bg-white bg-opacity-20 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
+                </button>
+                <a href="/medication-schedules" class="bg-gray-100 text-gray-800 px-4 py-2 rounded-md shadow-sm hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors duration-200 flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    View All Schedules
+                </a>
+            </div>
+        </div>
+
         <!-- Search and Action Bar -->
         <div class="mb-6 flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0 sm:space-x-4">
             <!-- Search Bar - Improved styling -->
@@ -19,15 +46,6 @@
                 </div>
                 <input id="medication-search" type="text" placeholder="Search medications..." class="pl-10 h-10 rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50 block w-full">
             </div>
-            
-            <!-- Check Interactions Button -->
-            <button id="check-interactions-btn" disabled class="bg-green-600 text-white px-4 py-2 rounded-md shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Check Drug Interactions
-                <span id="selected-count" class="ml-2 bg-white bg-opacity-20 text-white text-xs px-2 py-0.5 rounded-full hidden">0</span>
-            </button>
         </div>
 
         <!-- Medication List -->
@@ -145,6 +163,103 @@
     </div>
 </div>
 
+<!-- Medication Schedule Modal -->
+<div id="schedule-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+        <div class="p-5">
+            <div class="flex items-start justify-between mb-4">
+                <h3 class="text-xl font-semibold text-gray-900">Medication Schedule</h3>
+                <button id="close-schedule-btn" class="text-gray-400 hover:text-gray-500">
+                    <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Warning Alert (hidden by default) -->
+            <div id="schedule-warning" class="mb-6 bg-red-50 p-4 rounded-lg border border-red-200 hidden">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-sm font-medium text-red-800">Severe Medication Interactions Detected</h3>
+                        <div class="mt-2 text-sm text-red-700">
+                            <p id="schedule-warning-message">Please consult your healthcare provider before proceeding with this medication schedule.</p>
+                            <ul id="warning-interactions" class="list-disc pl-5 mt-2 space-y-1"></ul>
+                        </div>
+                        <div class="mt-4">
+                            <div class="flex space-x-3">
+                                <button id="consult-doctor-btn" class="bg-white px-3 py-2 border border-red-600 rounded-md text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                    I'll Consult My Doctor
+                                </button>
+                                <button id="continue-anyway-btn" class="bg-red-600 px-3 py-2 border border-transparent rounded-md text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+                                    Continue Anyway
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="schedule-loading" class="py-6 text-center">
+                <div class="inline-block animate-spin h-8 w-8 border-4 border-gray-200 rounded-full border-t-blue-500"></div>
+                <p class="mt-4 text-gray-600">Generating your medication schedule...</p>
+            </div>
+            
+            <!-- Schedule Content (hidden during loading) -->
+            <div id="schedule-content" class="hidden">
+                <div class="mb-6">
+                    <label for="schedule-name" class="block text-sm font-medium text-gray-700">Schedule Name</label>
+                    <input type="text" id="schedule-name" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                
+                <!-- Daily Schedule -->
+                <h4 class="text-lg font-medium text-gray-900 mb-3">Daily Schedule</h4>
+                <div id="daily-schedule" class="space-y-4 mb-6">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <!-- Weekly Adjustments if any -->
+                <div id="weekly-adjustments-section" class="mb-6 hidden">
+                    <h4 class="text-lg font-medium text-gray-900 mb-3">Weekly Adjustments</h4>
+                    <div id="weekly-adjustments" class="space-y-2">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Special Notes -->
+                <div id="special-notes-section" class="mb-6 bg-yellow-50 p-4 rounded-lg">
+                    <h4 class="text-md font-medium text-yellow-800 mb-2">Special Notes</h4>
+                    <p id="special-notes" class="text-sm text-yellow-700">Please consult your healthcare provider before following this schedule.</p>
+                </div>
+                
+                <!-- Follow-up Recommendation -->
+                <div id="followup-section" class="mb-6 bg-blue-50 p-4 rounded-lg">
+                    <h4 class="text-md font-medium text-blue-800 mb-2">Follow-up Recommendation</h4>
+                    <p id="followup-recommendation" class="text-sm text-blue-700">Schedule a follow-up with your doctor to review this medication plan.</p>
+                </div>
+                
+                <!-- Save Button -->
+                <div class="mt-5 flex justify-end">
+                    <button id="save-schedule-btn" class="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Save Schedule
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Disclaimer -->
+            <div class="mt-5 pt-4 text-sm text-gray-500 text-center">
+                <p>This schedule is generated by AI and is not a substitute for professional medical advice.</p>
+                <p>Always consult your healthcare provider before changing medication regimens.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- JavaScript -->
 <script>
     document.addEventListener('DOMContentLoaded', async function() {
@@ -163,6 +278,8 @@
         const closeModalBtn = document.getElementById('close-modal-btn');
         const checkInteractionsBtn = document.getElementById('check-interactions-btn');
         const selectedCountBadge = document.getElementById('selected-count');
+        const createScheduleBtn = document.getElementById('create-schedule-btn');
+        const scheduleSelectedCountBadge = document.getElementById('schedule-selected-count');
         const interactionModal = document.getElementById('interaction-modal');
         const interactionContent = document.getElementById('interaction-content');
         const interactionLoading = document.getElementById('interaction-loading');
@@ -245,7 +362,7 @@
                     } else {
                         selectedMedications.delete(medId);
                     }
-                    updateInteractionButton();
+                    updateButtonStates();
                 });
                 
                 // Set purpose preview
@@ -275,8 +392,8 @@
                 medicationsContainer.appendChild(card);
             });
             
-            // Update interaction button state
-            updateInteractionButton();
+            // Update button states
+            updateButtonStates();
         }
         
         // Generate a simple ID for medications if they don't have one
@@ -284,10 +401,11 @@
             return 'med_' + name.toLowerCase().replace(/[^a-z0-9]/g, '_');
         }
         
-        // Update the interaction button state
-        function updateInteractionButton() {
+        // Update both button states based on selected medications
+        function updateButtonStates() {
             const count = selectedMedications.size;
             
+            // Update Check Interactions button
             if (count >= 2) {
                 checkInteractionsBtn.disabled = false;
                 selectedCountBadge.textContent = count;
@@ -295,6 +413,16 @@
             } else {
                 checkInteractionsBtn.disabled = true;
                 selectedCountBadge.classList.add('hidden');
+            }
+            
+            // Update Create Schedule button
+            if (count >= 1) {
+                createScheduleBtn.disabled = false;
+                scheduleSelectedCountBadge.textContent = count;
+                scheduleSelectedCountBadge.classList.remove('hidden');
+            } else {
+                createScheduleBtn.disabled = true;
+                scheduleSelectedCountBadge.classList.add('hidden');
             }
         }
         
@@ -344,6 +472,15 @@
         
         // Check drug interactions
         checkInteractionsBtn.addEventListener('click', function() {
+            checkInteractions();
+        });
+        
+        // Create schedule
+        createScheduleBtn.addEventListener('click', function() {
+            createMedicationSchedule();
+        });
+        
+        function checkInteractions() {
             // Get selected medication names
             const selectedMeds = Array.from(document.querySelectorAll('.med-checkbox:checked')).map(cb => cb.dataset.name);
             
@@ -429,7 +566,277 @@
                     </div>
                 `;
             });
-        });
+        }
+        
+        // Function to create medication schedule
+        function createMedicationSchedule() {
+            // Get selected medication names
+            const selectedMeds = Array.from(document.querySelectorAll('.med-checkbox:checked')).map(cb => cb.dataset.name);
+            
+            if (selectedMeds.length < 1) {
+                return; // Should not happen with disabled button
+            }
+            
+            console.log('Creating schedule for medications:', selectedMeds.join(', '));
+            
+            // Show schedule modal with loading state
+            const scheduleModal = document.getElementById('schedule-modal');
+            const scheduleLoading = document.getElementById('schedule-loading');
+            const scheduleContent = document.getElementById('schedule-content');
+            const scheduleWarning = document.getElementById('schedule-warning');
+            
+            // Reset and show the modal
+            resetScheduleModal();
+            scheduleModal.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+            scheduleLoading.classList.remove('hidden');
+            scheduleContent.classList.add('hidden');
+            scheduleWarning.classList.add('hidden');
+            
+            // Set default schedule name with today's date
+            const today = new Date();
+            const scheduleName = document.getElementById('schedule-name');
+            scheduleName.value = `Medication Schedule (${today.toLocaleDateString()})`;
+            
+            // Call API to generate schedule
+            fetch('/api/documents/medications/generate-schedule', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({ 
+                    medications: selectedMeds 
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(result => {
+                // Hide loading
+                scheduleLoading.classList.add('hidden');
+                
+                // Check if severe interactions warning needed
+                if (result.success && result.requiresWarning && result.interactions) {
+                    // Show the warning section
+                    scheduleWarning.classList.remove('hidden');
+                    
+                    // Populate warning details
+                    const warningInteractions = document.getElementById('warning-interactions');
+                    warningInteractions.innerHTML = '';
+                    
+                    result.interactions.forEach(interaction => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `<span class="font-medium">${interaction.pair.join(' + ')}:</span> ${interaction.warning}`;
+                        warningInteractions.appendChild(li);
+                    });
+                    
+                    // Set up buttons
+                    const consultDoctorBtn = document.getElementById('consult-doctor-btn');
+                    const continueAnywayBtn = document.getElementById('continue-anyway-btn');
+                    
+                    consultDoctorBtn.onclick = () => {
+                        scheduleModal.classList.add('hidden');
+                        document.body.classList.remove('overflow-hidden');
+                    };
+                    
+                    continueAnywayBtn.onclick = () => {
+                        // Hide warning and show loading again
+                        scheduleWarning.classList.add('hidden');
+                        scheduleLoading.classList.remove('hidden');
+                        
+                        // Call API again with ignore warnings flag
+                        fetch('/api/documents/medications/generate-schedule', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                medications: selectedMeds,
+                                ignoreWarnings: true 
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            scheduleLoading.classList.add('hidden');
+                            if (data.success && data.schedule) {
+                                displaySchedule(data.schedule);
+                            } else {
+                                throw new Error(data.error || 'Failed to generate schedule');
+                            }
+                        })
+                        .catch(error => {
+                            scheduleLoading.classList.add('hidden');
+                            alert(`Error generating schedule: ${error.message}`);
+                        });
+                    };
+                } 
+                // If no warnings, show schedule directly
+                else if (result.success && result.schedule) {
+                    displaySchedule(result.schedule);
+                } 
+                else {
+                    throw new Error(result.error || 'Failed to generate schedule');
+                }
+            })
+            .catch(error => {
+                scheduleLoading.classList.add('hidden');
+                console.error('Error generating schedule:', error);
+                alert(`Error: ${error.message}`);
+            });
+        }
+        
+        // Function to display schedule in modal
+        function displaySchedule(scheduleData) {
+            const scheduleContent = document.getElementById('schedule-content');
+            const dailySchedule = document.getElementById('daily-schedule');
+            const weeklyAdjustmentsSection = document.getElementById('weekly-adjustments-section');
+            const weeklyAdjustments = document.getElementById('weekly-adjustments');
+            const specialNotes = document.getElementById('special-notes');
+            const followupRecommendation = document.getElementById('followup-recommendation');
+            const scheduleName = document.getElementById('schedule-name');
+            
+            // Show content section
+            scheduleContent.classList.remove('hidden');
+            
+            // Set schedule name if not already set
+            if (!scheduleName.value) {
+                scheduleName.value = scheduleData.name || `Medication Schedule (${new Date().toLocaleDateString()})`;
+            }
+            
+            // Populate daily schedule
+            dailySchedule.innerHTML = '';
+            if (scheduleData.schedule && scheduleData.schedule.dailySchedule) {
+                scheduleData.schedule.dailySchedule.forEach(timeSlot => {
+                    const timeSlotElement = document.createElement('div');
+                    timeSlotElement.className = 'bg-white border border-blue-100 rounded-lg p-4 shadow-sm';
+                    
+                    const headerClass = 'flex items-center justify-between border-b border-blue-100 pb-2 mb-3';
+                    const timeLabel = `${timeSlot.timeOfDay} <span class="text-blue-700 text-sm font-normal">(${timeSlot.suggestedTime})</span>`;
+                    const foodBadge = timeSlot.withFood 
+                        ? '<span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">With Food</span>'
+                        : '<span class="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">Empty Stomach</span>';
+                    
+                    let medsHtml = '';
+                    timeSlot.medications.forEach(med => {
+                        medsHtml += `
+                            <div class="py-2 border-b border-gray-100 last:border-0">
+                                <div class="font-medium text-gray-900">${med.name}</div>
+                                <div class="text-sm text-gray-700 mt-1 flex flex-wrap gap-2">
+                                    ${med.dosage ? `<span class="bg-gray-100 px-2 py-1 rounded-md">${med.dosage}</span>` : ''}
+                                    ${med.specialInstructions ? `<span class="text-blue-700">${med.specialInstructions}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    timeSlotElement.innerHTML = `
+                        <div class="${headerClass}">
+                            <h5 class="text-md font-medium text-gray-900">${timeLabel}</h5>
+                            ${foodBadge}
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            ${medsHtml}
+                        </div>
+                    `;
+                    
+                    dailySchedule.appendChild(timeSlotElement);
+                });
+            }
+            
+            // Populate weekly adjustments if any
+            if (scheduleData.schedule && scheduleData.schedule.weeklyAdjustments && scheduleData.schedule.weeklyAdjustments.length > 0) {
+                weeklyAdjustmentsSection.classList.remove('hidden');
+                weeklyAdjustments.innerHTML = '';
+                
+                scheduleData.schedule.weeklyAdjustments.forEach(adjustment => {
+                    const item = document.createElement('div');
+                    item.className = 'p-3 bg-gray-50 rounded-lg';
+                    item.innerHTML = `
+                        <div class="font-medium text-gray-800">${adjustment.day}</div>
+                        <div class="text-sm text-gray-700 mt-1">${adjustment.adjustments}</div>
+                    `;
+                    weeklyAdjustments.appendChild(item);
+                });
+            } else {
+                weeklyAdjustmentsSection.classList.add('hidden');
+            }
+            
+            // Set special notes
+            if (scheduleData.schedule && scheduleData.schedule.specialNotes) {
+                specialNotes.textContent = scheduleData.schedule.specialNotes;
+            }
+            
+            // Set followup recommendation
+            if (scheduleData.schedule && scheduleData.schedule.recommendedFollowup) {
+                followupRecommendation.textContent = scheduleData.schedule.recommendedFollowup;
+            }
+            
+            // Set up save button
+            const saveScheduleBtn = document.getElementById('save-schedule-btn');
+            saveScheduleBtn.onclick = () => saveSchedule(scheduleData);
+        }
+        
+        // Reset schedule modal
+        function resetScheduleModal() {
+            const scheduleName = document.getElementById('schedule-name');
+            const dailySchedule = document.getElementById('daily-schedule');
+            const weeklyAdjustments = document.getElementById('weekly-adjustments');
+            const weeklyAdjustmentsSection = document.getElementById('weekly-adjustments-section');
+            const specialNotes = document.getElementById('special-notes');
+            const followupRecommendation = document.getElementById('followup-recommendation');
+            const scheduleWarning = document.getElementById('schedule-warning');
+            const warningInteractions = document.getElementById('warning-interactions');
+            
+            // Reset all values
+            scheduleName.value = '';
+            dailySchedule.innerHTML = '';
+            weeklyAdjustments.innerHTML = '';
+            weeklyAdjustmentsSection.classList.add('hidden');
+            specialNotes.textContent = 'Please consult your healthcare provider before following this schedule.';
+            followupRecommendation.textContent = 'Schedule a follow-up with your doctor to review this medication plan.';
+            scheduleWarning.classList.add('hidden');
+            warningInteractions.innerHTML = '';
+        }
+        
+        // Save schedule
+        function saveSchedule(scheduleData) {
+            const scheduleName = document.getElementById('schedule-name');
+            const scheduleModal = document.getElementById('schedule-modal');
+            
+            // Update name from input
+            const customName = scheduleName.value.trim();
+            if (customName) {
+                scheduleData.name = customName;
+            }
+            
+            // Call API to save schedule
+            fetch(`/api/documents/med-schedules/${scheduleData.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    name: scheduleData.name,
+                    active: true
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('Schedule saved successfully!');
+                    scheduleModal.classList.add('hidden');
+                    document.body.classList.remove('overflow-hidden');
+                    
+                    // Redirect to the schedules page
+                    window.location.href = '/medication-schedules';
+                } else {
+                    throw new Error(result.error || 'Failed to save schedule');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving schedule:', error);
+                alert(`Error saving schedule: ${error.message}`);
+            });
+        }
         
         // Function to display interaction results
         function displayInteractionResults(data, isCached) {
@@ -631,6 +1038,12 @@
                 modal.classList.add('hidden');
                 document.body.classList.remove('overflow-hidden');
             }
+        });
+        
+        // Set up schedule modal close button
+        document.getElementById('close-schedule-btn').addEventListener('click', () => {
+            document.getElementById('schedule-modal').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
         });
         
         // Handle medication search

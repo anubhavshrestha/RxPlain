@@ -3,6 +3,10 @@ import { auth, db } from '../config/firebase-admin.js';
 // Middleware to check if user is authenticated
 export const isAuthenticated = async (req, res, next) => {
   console.log('Authentication middleware triggered for path:', req.path);
+  console.log('Full URL path:', req.originalUrl);
+  console.log('Route params:', req.params);
+  console.log('Auth headers:', req.headers.authorization ? 'Present' : 'Not present');
+  
   try {
     const sessionCookie = req.cookies.session || '';
     if (!sessionCookie) {

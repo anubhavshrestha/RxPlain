@@ -188,6 +188,33 @@ app.get('/medications', isAuthenticated, async (req, res) => {
   }
 });
 
+app.get('/medication-schedules', isAuthenticated, async (req, res) => {
+  try {
+    console.log(`[App Route] Rendering /medication-schedules page for user: ${req.user?.uid}`);
+
+    // Get user data from Firestore
+    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    
+    if (!userDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Render the medication schedules page
+    res.render('medication-schedules', { 
+      title: 'Medication Schedules - RxPlain',
+      user: { ...req.user, ...userData }
+    });
+  } catch (error) {
+    console.error('Error fetching user data:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading medication schedules'
+    });
+  }
+});
+
 app.get('/reports', isAuthenticated, async (req, res) => {
   try {
     // Get user data from Firestore
