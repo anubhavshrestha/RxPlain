@@ -1118,7 +1118,7 @@ router.post('/medications/generate-schedule', isAuthenticated, async (req, res) 
         console.log(`Generating schedule for user ${userId} with ${medications.length} medications`);
 
         // First check for severe interactions that would prohibit scheduling
-        if (medications.length > 1) {
+        if (medications.length > 1 && !req.body.ignoreWarnings) {
             // Enhanced prompt for interaction check specifically for scheduling
             const interactionCheckPrompt = `
                 Analyze ONLY the potential SEVERE or HIGH-RISK drug interactions between the following medications:
@@ -1334,25 +1334,34 @@ router.put('/med-schedules/:scheduleId', isAuthenticated, async (req, res) => {
             });
         }
         
+        // If activating, deactivate all other schedules for this user
+        if (active === true) {
+            const userSchedules = await db.collection('medicationSchedules')
+                .where('userId', '==', userId)
+                .where('active', '==', true)
+                .get();
+            const batch = db.batch();
+            userSchedules.forEach(doc => {
+                if (doc.id !== scheduleId) {
+                    batch.update(doc.ref, { active: false });
+                }
+            });
+            await batch.commit();
+        }
         // Update the schedule
         const updateData = {
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         };
-        
         if (name !== undefined) {
             updateData.name = name;
         }
-        
         if (active !== undefined) {
             updateData.active = active;
         }
-        
         await scheduleRef.update(updateData);
-        
         // Get the updated schedule
         const updatedScheduleSnapshot = await scheduleRef.get();
         const updatedScheduleData = updatedScheduleSnapshot.data();
-        
         // Convert timestamps to ISO strings
         if (updatedScheduleData.createdAt) {
             updatedScheduleData.createdAt = updatedScheduleData.createdAt.toDate().toISOString();
@@ -1360,7 +1369,6 @@ router.put('/med-schedules/:scheduleId', isAuthenticated, async (req, res) => {
         if (updatedScheduleData.updatedAt) {
             updatedScheduleData.updatedAt = updatedScheduleData.updatedAt.toDate().toISOString();
         }
-        
         return res.status(200).json({
             success: true,
             schedule: updatedScheduleData
