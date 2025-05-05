@@ -220,10 +220,11 @@ function renderDocumentList(docs) {
 }
 
 // MODIFIED loadDocuments - Now acts as the trigger/orchestrator
-async function loadDocuments() {
+async function loadDocuments(skipCache = true) { // Changed default to true to disable cache
     console.log('[Dashboard.js] Entering loadDocuments (now initializeDocumentsDisplay)...');
     // This function is now primarily called after auth confirmation or after upload.
-    // It triggers the fetch-compare-cache-render sequence.
+    // This function now skips the cache by default while we debug document status issues
+    console.log('[Dashboard.js] Cache mechanism temporarily disabled - always fetching fresh data');
     
     // Show a less intrusive loading state? Maybe a spinner near the title?
     // For now, we rely on the background fetch not being too slow after initial cache load.
@@ -232,25 +233,20 @@ async function loadDocuments() {
         const freshDocs = await fetchDocumentsFromServer();
         console.log(`[Dashboard.js] loadDocuments: Fetched ${freshDocs.length} fresh docs.`);
         
-        // Compare with potentially cached data that's already displayed
-        if (areDocumentListsDifferent(currentlyDisplayedDocs, freshDocs)) {
-            console.log('[Dashboard.js] loadDocuments: Server data differs from displayed. Updating display.');
-            currentlyDisplayedDocs = freshDocs;
-            renderDocumentList(currentlyDisplayedDocs);
-            // Optionally show an update notice like in reports.js
-        } else {
-            console.log('[Dashboard.js] loadDocuments: Server data matches displayed. No UI update needed.');
-        }
+        // Since we're skipping cache, we always update the display
+        console.log('[Dashboard.js] Always updating display with fresh data (cache disabled)');
+        currentlyDisplayedDocs = freshDocs;
+        renderDocumentList(currentlyDisplayedDocs);
         
-        // Cache the fresh data
-        cacheDocumentsData(freshDocs); 
-
+        // We'll still update the cache for when it's re-enabled later
+        if (!skipCache) {
+            cacheDocumentsData(freshDocs);
+        } else {
+            console.log('[Dashboard.js] Skipping document caching as requested');
+        }
     } catch (error) {
         console.error('[Dashboard.js] Error in loadDocuments (fetch stage):', error);
-        // If cache wasn't displayed initially (handled in startDashboard), 
-        // we might need error display here too. But usually, cache is shown first.
         showErrorNotice('Could not refresh document list.'); // Use new notice function
-        // Avoid calling showEmptyState here unless we know cache failed AND fetch failed.
     }
     console.log('[Dashboard.js] Exiting loadDocuments (initializeDocumentsDisplay).');
 }
@@ -295,6 +291,67 @@ function addDocumentToList(documentData) {
 
     // Set processing status indicator
     let processingStatus = '';
+    let endorsementStatus = '';
+    let isPending = false;
+    let mostRecentStatus = 'unprocessed';
+    let mostRecentTimestamp = 0;
+    
+    // Determine the most recent status (endorsed or flagged) based on timestamp
+    if (documentData.endorsedBy && documentData.endorsedBy.timestamp && typeof documentData.endorsedBy.timestamp._seconds === 'number') {
+        // Convert Firestore timestamp to milliseconds
+        const endorseTimestamp = (documentData.endorsedBy.timestamp._seconds * 1000) + 
+                                 (documentData.endorsedBy.timestamp._nanoseconds / 1000000);
+        if (endorseTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'endorsed';
+            mostRecentTimestamp = endorseTimestamp;
+        }
+    }
+    
+    if (documentData.flaggedBy && documentData.flaggedBy.timestamp && typeof documentData.flaggedBy.timestamp._seconds === 'number') {
+         // Convert Firestore timestamp to milliseconds
+        const flagTimestamp = (documentData.flaggedBy.timestamp._seconds * 1000) + 
+                              (documentData.flaggedBy.timestamp._nanoseconds / 1000000);
+        if (flagTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'flagged';
+            mostRecentTimestamp = flagTimestamp;
+        }
+    }
+    
+    console.log(`[Dashboard.js] Doc ID: ${documentData.id}, Determined most recent status: ${mostRecentStatus}`);
+    
+    // Set endorsement/flag status based on most recent action
+    if (mostRecentStatus === 'endorsed') {
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Endorsed
+            </span>
+        `;
+    } else if (mostRecentStatus === 'flagged') {
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Flagged
+            </span>
+        `;
+    } else if (documentData.isProcessed) {
+        // Only show pending if not endorsed or flagged
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Pending Review
+            </span>
+        `;
+        isPending = true;
+    }
+    
+    // Always show processed status if the document is processed
     if (documentData.isProcessed) {
         processingStatus = `
             <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 ml-2">
@@ -306,7 +363,7 @@ function addDocumentToList(documentData) {
         `;
     } else if (documentData.isProcessing) {
         processingStatus = `
-            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2">
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2 processing-indicator">
                 <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -352,6 +409,70 @@ function addDocumentToList(documentData) {
         `;
     }
     
+    // Add doctor feedback information - only show the most recent one
+    let doctorFeedback = '';
+    if (mostRecentStatus === 'endorsed' && documentData.endorsedBy) {
+        // Use the calculated mostRecentTimestamp (which is already in milliseconds)
+        const endorseDate = new Date(mostRecentTimestamp).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-green-50 rounded border border-green-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-green-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-green-700">
+                            <span class="font-medium">Endorsed by Dr. ${documentData.endorsedBy.displayName}</span>
+                            <span class="mx-1">•</span>
+                            <span>${endorseDate}</span>
+                        </div>
+                        ${documentData.endorsedBy.note ? `<p class="text-xs mt-1 text-gray-700">${documentData.endorsedBy.note}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (mostRecentStatus === 'flagged' && documentData.flaggedBy) {
+        // Use the calculated mostRecentTimestamp (which is already in milliseconds)
+        const flagDate = new Date(mostRecentTimestamp).toLocaleDateString('en-US', {
+             year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-yellow-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-yellow-700">
+                            <span class="font-medium">Flagged by Dr. ${documentData.flaggedBy.displayName}</span>
+                            <span class="mx-1">•</span>
+                            <span>${flagDate}</span>
+                        </div>
+                        ${documentData.flaggedBy.note ? `<p class="text-xs mt-1 text-gray-700">${documentData.flaggedBy.note}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (isPending) {
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-blue-50 rounded border border-blue-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-blue-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-blue-700">
+                            <span class="font-medium">Awaiting doctor review</span>
+                        </div>
+                        <p class="text-xs mt-1 text-gray-700">This document is waiting for a doctor to review it.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
     // Set document item HTML
     documentItem.innerHTML = `
         <div class="flex items-start">
@@ -367,10 +488,13 @@ function addDocumentToList(documentData) {
                 <div class="flex items-center flex-wrap">
                     <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
                     ${processingStatus}
+                    ${endorsementStatus}
                     ${documentTypeBadge}
                 </div>
                 <div class="text-sm text-gray-500 mt-1">
                     ${fileSize} • Uploaded on ${createdDate}
+                </div>
+                ${doctorFeedback}
             </div>
         </div>
         <div class="flex space-x-2">
@@ -403,6 +527,15 @@ function addDocumentToList(documentData) {
             </div>
         </div>
     `;
+    
+    // Add document to the "endorsed", "flagged", or "pending" dataset attributes for filtering
+    if (mostRecentStatus === 'endorsed') {
+        documentItem.dataset.endorsed = "true";
+    } else if (mostRecentStatus === 'flagged') {
+        documentItem.dataset.flagged = "true";
+    } else if (isPending) {
+        documentItem.dataset.pending = "true";
+    }
     
     // Append item to the list (modified from prepend)
     documentList.appendChild(documentItem);
@@ -524,58 +657,43 @@ async function renameDocument(documentId, currentName, documentItem) {
 
 // Delete document
 async function deleteDocument(documentId, documentItem) {
-    if (!Swal) {
-        console.error('SweetAlert (Swal) is not available.');
-        showError('UI component missing. Cannot delete.');
-        return;
-    }
-    
-    const result = await Swal.fire({
-        title: 'Are you sure?',
-        text: "You won't be able to revert this! The original file will be deleted.",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete it!'
-    });
+    if (!confirm('Are you sure you want to delete this document?')) return;
 
-    if (result.isConfirmed) {
-        console.log(`Attempting to delete document ${documentId}`);
-        try {
-            // Show some temporary deleting state on the item?
-            documentItem.style.opacity = '0.5'; 
+    // Show loading animation
+    documentItem.classList.add('animate-pulse', 'opacity-50');
 
+    try {
         const response = await fetch(`/api/documents/${documentId}`, {
-                method: 'DELETE'
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            }
         });
-        
-        if (response.ok) {
-                // Remove document item from the list with animation
-                documentItem.classList.add('animate-fade-out'); // Add fade-out animation class
-                setTimeout(() => {
+
+        if (!response.ok) {
+            throw new Error('Failed to delete document');
+        }
+
+        // Remove the document item from the UI with fade-out animation
+        documentItem.classList.add('animate-fade-out');
+        setTimeout(() => {
             documentItem.remove();
-            // Show empty state if no documents left
+            
+            // Check if there are any documents left
             if (documentList.children.length === 0) {
                 showEmptyState();
             }
-                     // Update selected count if the deleted item was selected
-                     if (selectedDocuments.has(documentId)) {
-                         selectedDocuments.delete(documentId);
-                         updateSelectedCount();
-                     }
-                }, 500); // Match animation duration
+        }, 300);
 
-                Swal.fire('Deleted!', 'Your document has been deleted.', 'success');
-        } else {
-            const errorData = await response.json();
-                throw new Error(errorData.error || `Server error: ${response.statusText}`);
-        }
+        // Show a success toast or notification
+        showNotification('Document deleted successfully', 'success');
+        
+        // Refresh the document list with cache skipping to ensure we have the latest data
+        await loadDocuments(true);
     } catch (error) {
         console.error('Error deleting document:', error);
-            documentItem.style.opacity = '1'; // Restore opacity on error
-            Swal.fire('Error', `Could not delete document: ${error.message}`, 'error');
-        }
+        documentItem.classList.remove('animate-pulse', 'opacity-50');
+        showNotification('Error deleting document', 'error');
     }
 }
 
@@ -624,27 +742,24 @@ function setupFileUpload() {
 }
 
 // Process the selected file
-function handleFile(file) {
-    // Reset error message
-    errorMessage.classList.add('hidden');
-    
-    // Validate file type
-    if (!supportedTypes.includes(file.type)) {
-        showError('Unsupported file format. Please upload a PDF, JPG, or PNG file.');
+async function handleFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+        showError('File size must be less than 10MB.');
         return;
     }
-    
-    // Validate file size
-    if (file.size > maxFileSize) {
-        showError('File is too large. Maximum file size is 10MB.');
-        return;
+
+    try {
+        showUploadProgress(true);
+        await uploadFile(file);
+        showUploadProgress(false);
+        
+        // Force reload documents with cache skipping
+        await loadDocuments(true); // Always load fresh data after an upload
+    } catch (error) {
+        console.error('Error handling file:', error);
+        showError('An error occurred uploading the file.');
+        showUploadProgress(false);
     }
-    
-    // Show upload progress
-    uploadProgress.classList.remove('hidden');
-    
-    // Upload file using server-side endpoint
-    uploadFile(file);
 }
 
 // Upload file to server
@@ -694,8 +809,8 @@ function uploadFile(file) {
                 // Clear file input
                 fileInput.value = '';
                 
-                // Automatically refresh the document list
-                loadDocuments();
+                // Automatically refresh the document list with cache skipping
+                loadDocuments(true); // Always load fresh data after upload
                 
                 // Reset error message after 3 seconds
                 setTimeout(function() {
@@ -1336,6 +1451,11 @@ function setupFilters() {
             const isProcessing = item.querySelector('.bg-blue-100.processing-indicator') !== null; // Check for processing indicator specifically
             const documentType = item.dataset.type || 'UNCLASSIFIED';
             
+            // Check for endorsement/flag statuses from dataset attributes
+            const isEndorsed = item.dataset.endorsed === "true";
+            const isFlagged = item.dataset.flagged === "true";
+            const isPending = item.dataset.pending === "true";
+            
             let isVisible = true;
             
             // Apply search filter (check filename)
@@ -1350,13 +1470,25 @@ function setupFilters() {
             
             // Apply status filter
             if (isVisible && statusValue !== 'all') {
-            if (statusValue === 'processed' && !isProcessed) {
-                isVisible = false;
-            } else if (statusValue === 'processing' && !isProcessing) {
-                     isVisible = false;
-                } else if (statusValue === 'unprocessed' && (isProcessed || isProcessing)) {
-                    // Unprocessed means neither processed nor currently processing
-                isVisible = false;
+                switch(statusValue) {
+                    case 'processed':
+                        if (!isProcessed) isVisible = false;
+                        break;
+                    case 'processing':
+                        if (!isProcessing) isVisible = false;
+                        break;
+                    case 'unprocessed':
+                        if (isProcessed || isProcessing) isVisible = false;
+                        break;
+                    case 'endorsed':
+                        if (!isEndorsed) isVisible = false;
+                        break;
+                    case 'flagged':
+                        if (!isFlagged) isVisible = false;
+                        break;
+                    case 'pending':
+                        if (!isPending) isVisible = false;
+                        break;
                 }
             }
             
@@ -1462,6 +1594,9 @@ function setupFilterUI() {
                     class="appearance-none block w-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 pr-8 rounded-md leading-tight focus:outline-none focus:bg-white focus:border-health-500 focus:ring-1 focus:ring-health-500 shadow-sm text-sm"
                     style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e\"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.25em;" >
                     <option value="all">All Status</option>
+                    <option value="endorsed">Endorsed</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="pending">Pending Review</option>
                     <option value="processed">Processed</option>
                     <option value="processing">Processing</option>
                     <option value="unprocessed">Unprocessed</option>
@@ -1568,8 +1703,8 @@ async function startDashboard() {
                     // throw new Error('Failed to create session'); 
                 }
 
-                // User is signed in, load their documents
-                await loadDocuments(); // Wait for documents to load initially
+                // User is signed in, load their documents - force skip cache
+                await loadDocuments(true); // Explicitly skip cache to always load fresh data
                 
                 // Initialize UI elements that depend on documents being loaded or auth state
                 initializeDashboardUI(); 

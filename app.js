@@ -79,6 +79,24 @@ app.engine('handlebars', engine({
     },
     ne: function(a, b) {
       return a !== b;
+    },
+    // Helper to compare two dates and return true if date1 is more recent than date2
+    ifMoreRecent: function(date1, date2, options) {
+      try {
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        
+        // Check if dates are valid
+        if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+          console.warn('Invalid date comparison:', date1, date2);
+          return options.inverse(this);
+        }
+        
+        return d1.getTime() >= d2.getTime() ? options.fn(this) : options.inverse(this);
+      } catch (error) {
+        console.error('Error comparing dates:', error);
+        return options.inverse(this);
+      }
     }
   }
 }));
@@ -142,14 +160,40 @@ app.get('/dashboard', isAuthenticated, async (req, res) => {
     
     // Render role-specific dashboard
     if (userData.role === 'doctor') {
+      // Get connection requests count for notification
+      const requestsSnapshot = await db.collection('connectionRequests')
+        .where('receiverId', '==', req.user.uid)
+        .where('status', '==', 'pending')
+        .get();
+      
+      const pendingRequestsCount = requestsSnapshot.size;
+      
+      // Get connected patients count
+      const patientConnections = userData.connections || [];
+      
       res.render('doctor-dashboard', { 
         title: 'Doctor Dashboard - RxPlain',
-        user: { ...req.user, ...userData }
+        user: { ...req.user, ...userData },
+        pendingRequestsCount,
+        connectionCount: patientConnections.length
       });
     } else {
+      // Get connection requests count for patients
+      const requestsSnapshot = await db.collection('connectionRequests')
+        .where('senderId', '==', req.user.uid)
+        .where('status', '==', 'pending')
+        .get();
+      
+      const pendingRequestsCount = requestsSnapshot.size;
+      
+      // Get connected doctors count
+      const doctorConnections = userData.connections || [];
+      
       res.render('dashboard', { 
         title: 'Document Dashboard - RxPlain',
-        user: { ...req.user, ...userData }
+        user: { ...req.user, ...userData },
+        pendingRequestsCount,
+        connectionCount: doctorConnections.length
       });
     }
   } catch (error) {
@@ -297,6 +341,102 @@ app.get('/reports/:reportId', isAuthenticated, async (req, res) => {
   }
 });
 
+// Document View Route
+app.get('/documents/:documentId', isAuthenticated, async (req, res) => {
+  try {
+    const documentId = req.params.documentId;
+    const userId = req.user.uid;
+    
+    // Get user data
+    const userDoc = await db.collection('users').doc(userId).get();
+    
+    if (!userDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    const userData = userDoc.data();
+    
+    // Get document details
+    const docSnapshot = await db.collection('documents').doc(documentId).get();
+    
+    if (!docSnapshot.exists) {
+      return res.status(404).render('error', { 
+        title: 'Document Not Found - RxPlain',
+        message: 'The requested document could not be found'
+      });
+    }
+    
+    const documentData = docSnapshot.data();
+    const documentOwnerId = documentData.userId;
+    
+    // Check if the document belongs to the user
+    let isDoctor = false;
+    if (documentOwnerId !== userId) {
+      // If not the owner, check if the current user is a doctor connected to the document owner
+      if (userData.role !== 'doctor') {
+        // Not a doctor - unauthorized
+        return res.status(403).render('error', { 
+          title: 'Unauthorized - RxPlain',
+          message: 'You are not authorized to view this document'
+        });
+      }
+      isDoctor = true;
+      // Check if doctor is connected to this patient
+      const doctorConnections = userData.connections || [];
+      if (!doctorConnections.includes(documentOwnerId)) {
+        // Doctor is not connected to the patient - unauthorized
+        return res.status(403).render('error', { 
+          title: 'Unauthorized - RxPlain',
+          message: 'You are not authorized to access this patient\'s document'
+        });
+      }
+      console.log(`Doctor ${userId} authorized to view patient ${documentOwnerId} document ${documentId}`);
+    }
+    
+    // Convert Firestore timestamps to ISO strings for template
+    const convertDate = (d) => d && d.toDate ? d.toDate().toISOString() : d;
+    if (documentData.createdAt) documentData.createdAt = convertDate(documentData.createdAt);
+    if (documentData.updatedAt) documentData.updatedAt = convertDate(documentData.updatedAt);
+    if (documentData.processedAt) documentData.processedAt = convertDate(documentData.processedAt);
+    if (documentData.endorsedBy && documentData.endorsedBy.timestamp) documentData.endorsedBy.timestamp = convertDate(documentData.endorsedBy.timestamp);
+    if (documentData.flaggedBy && documentData.flaggedBy.timestamp) documentData.flaggedBy.timestamp = convertDate(documentData.flaggedBy.timestamp);
+    
+    // Prepare document data for the view
+    const document = {
+      id: documentId,
+      userId: documentOwnerId,
+      fileName: documentData.fileName,
+      fileUrl: documentData.fileUrl || documentData.url,
+      fileType: documentData.fileType || documentData.documentType,
+      createdAt: documentData.createdAt,
+      updatedAt: documentData.updatedAt,
+      processedAt: documentData.processedAt,
+      isProcessed: documentData.isProcessed || false,
+      isProcessing: documentData.isProcessing || false,
+      simplifiedText: documentData.simplifiedText || documentData.simplified || documentData.processedContent || '',
+      medications: documentData.medications || [],
+      endorsedBy: documentData.endorsedBy || null,
+      flaggedBy: documentData.flaggedBy || null,
+      originalText: documentData.originalText || '',
+      isDoctor: isDoctor
+    };
+    
+    // Render the document view
+    res.render('document-view', { 
+      title: `${document.fileName} - RxPlain`,
+      user: { ...req.user, ...userData },
+      document: document
+    });
+    
+  } catch (error) {
+    console.error('Error fetching document data:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading document'
+    });
+  }
+});
+
 app.get('/profile', isAuthenticated, async (req, res) => {
   try {
     // Get user data from Firestore
@@ -322,6 +462,94 @@ app.get('/profile', isAuthenticated, async (req, res) => {
     }
   } catch (error) {
     console.error('Error fetching user profile:', error);
+    res.status(500).render('error', { 
+      title: 'Error - RxPlain',
+      message: 'Error loading profile'
+    });
+  }
+});
+
+app.get('/profile/:userId', isAuthenticated, async (req, res) => {
+  try {
+    const currentUserId = req.user.uid;
+    const targetUserId = req.params.userId;
+    
+    // Get current user data
+    const currentUserDoc = await db.collection('users').doc(currentUserId).get();
+    if (!currentUserDoc.exists) {
+      return res.redirect('/register');
+    }
+    
+    // Get target user data
+    const targetUserDoc = await db.collection('users').doc(targetUserId).get();
+    if (!targetUserDoc.exists) {
+      return res.status(404).render('error', { 
+        title: 'User Not Found - RxPlain',
+        message: 'The requested user could not be found'
+      });
+    }
+    
+    const currentUserData = currentUserDoc.data();
+    const targetUserData = targetUserDoc.data();
+    
+    // Check if users are connected
+    const currentUserConnections = currentUserData.connections || [];
+    const isConnected = currentUserConnections.includes(targetUserId);
+    
+    // Get any pending connection requests
+    let connectionRequest = null;
+    const pendingRequestsSnapshot = await db.collection('connectionRequests')
+      .where('senderId', 'in', [currentUserId, targetUserId])
+      .where('receiverId', 'in', [currentUserId, targetUserId])
+      .where('status', '==', 'pending')
+      .get();
+
+    if (!pendingRequestsSnapshot.empty) {
+      const requestDoc = pendingRequestsSnapshot.docs[0];
+      connectionRequest = {
+        id: requestDoc.id,
+        ...requestDoc.data(),
+        createdAt: requestDoc.data().createdAt.toDate()
+      };
+    }
+    
+    // If target user is a doctor, render doctor profile
+    if (targetUserData.role === 'doctor') {
+      res.render('doctor-profile', { 
+        title: `Dr. ${targetUserData.displayName} - RxPlain`,
+        user: { ...req.user, ...currentUserData },
+        doctor: {
+          id: targetUserId,
+          ...targetUserData,
+          createdAt: targetUserData.createdAt.toDate()
+        },
+        isConnected,
+        connectionRequest
+      });
+    } 
+    // If target user is a patient and current user is a doctor, render patient profile
+    else if (targetUserData.role === 'patient' && currentUserData.role === 'doctor') {
+      res.render('patient-profile', { 
+        title: `${targetUserData.displayName} - RxPlain`,
+        user: { ...req.user, ...currentUserData },
+        patient: {
+          id: targetUserId,
+          ...targetUserData,
+          createdAt: targetUserData.createdAt.toDate()
+        },
+        isConnected,
+        connectionRequest
+      });
+    } 
+    // Otherwise, unauthorized
+    else {
+      return res.status(403).render('error', { 
+        title: 'Unauthorized - RxPlain',
+        message: 'You are not authorized to view this profile'
+      });
+    }
+  } catch (error) {
+    console.error('Error fetching profile:', error);
     res.status(500).render('error', { 
       title: 'Error - RxPlain',
       message: 'Error loading profile'

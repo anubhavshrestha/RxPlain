@@ -44,6 +44,68 @@
     </div>
 </div>
 
+<!-- Doctors Section -->
+<div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+    <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold">Find a Doctor</h2>
+            <button id="refresh-doctors" class="text-health-600 hover:text-health-800">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                </svg>
+            </button>
+        </div>
+        
+        <div class="mb-4">
+            <input type="text" id="doctor-search" placeholder="Search by name or specialization" class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+        </div>
+        
+        <div id="doctors-list" class="space-y-4">
+            <!-- Doctor list will be loaded here -->
+            <div class="text-center py-6 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <p>Loading doctors...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Requests Section -->
+<div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+    <div class="p-6">
+        <h2 class="text-xl font-semibold mb-4">Connection Requests</h2>
+        
+        <div id="connection-requests" class="space-y-4">
+            <!-- Connection requests will be loaded here -->
+            <div id="no-requests" class="text-center py-6 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <p>No pending connection requests</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- My Doctors Section -->
+<div class="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+    <div class="p-6">
+        <h2 class="text-xl font-semibold mb-4">My Doctors</h2>
+        
+        <div id="my-doctors" class="space-y-4">
+            <!-- Connected doctors will be loaded here -->
+            <div id="no-connections" class="text-center py-6 text-gray-500">
+                <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <p>You haven't connected with any doctors yet</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="bg-white rounded-xl shadow-md overflow-hidden">
     <div class="p-6">
         <div class="flex justify-between items-center mb-4">
@@ -88,3 +150,339 @@
 
 <!-- Dashboard script (defer ensures it runs after firebase-client.js) -->
 <script defer src="/js/dashboard.js"></script>
+
+<!-- Doctor Connection Management Script -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    loadDoctors();
+    loadConnectionRequests();
+    loadConnections();
+    
+    // Event listeners
+    document.getElementById('refresh-doctors').addEventListener('click', loadDoctors);
+    document.getElementById('doctor-search').addEventListener('input', filterDoctors);
+});
+
+// Load all doctors
+async function loadDoctors() {
+    try {
+        const response = await fetch('/api/users/doctors');
+        const data = await response.json();
+        
+        const doctorsList = document.getElementById('doctors-list');
+        doctorsList.innerHTML = '';
+        
+        if (!data.doctors || data.doctors.length === 0) {
+            doctorsList.innerHTML = `
+                <div class="text-center py-6 text-gray-500">
+                    <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <p>No doctors available</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Also fetch connection requests to check status
+        const requestsResponse = await fetch('/api/users/connections/requests');
+        const requestsData = await requestsResponse.json();
+        const outgoingRequests = requestsData.outgoingRequests || [];
+        
+        // And fetch connections to disable already connected doctors
+        const connectionsResponse = await fetch('/api/users/connections');
+        const connectionsData = await connectionsResponse.json();
+        const connections = connectionsData.connections || [];
+        const connectedDoctorIds = connections.filter(c => c.role === 'doctor').map(c => c.id);
+        
+        // Create pending request map for quick lookup
+        const pendingRequestMap = {};
+        outgoingRequests.forEach(request => {
+            pendingRequestMap[request.receiverId] = true;
+        });
+        
+        data.doctors.forEach(doctor => {
+            const isConnected = connectedDoctorIds.includes(doctor.id);
+            const hasPendingRequest = pendingRequestMap[doctor.id];
+            
+            const doctorCard = document.createElement('div');
+            doctorCard.className = 'border border-gray-200 rounded-lg p-4';
+            doctorCard.dataset.name = doctor.displayName.toLowerCase();
+            doctorCard.dataset.specialization = (doctor.specialization || '').toLowerCase();
+            doctorCard.dataset.doctorId = doctor.id;
+            
+            let buttonHtml = '';
+            if (isConnected) {
+                buttonHtml = `
+                    <button disabled class="bg-green-100 text-green-800 px-4 py-2 rounded">
+                        Connected
+                    </button>
+                `;
+            } else if (hasPendingRequest) {
+                buttonHtml = `
+                    <button disabled class="bg-yellow-100 text-yellow-800 px-4 py-2 rounded">
+                        Request Sent
+                    </button>
+                `;
+            } else {
+                buttonHtml = `
+                    <button onclick="sendConnectionRequest('${doctor.id}')" 
+                            class="bg-health-500 hover:bg-health-600 text-white px-4 py-2 rounded">
+                        Connect
+                    </button>
+                `;
+            }
+            
+            doctorCard.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="font-semibold text-lg">Dr. ${doctor.displayName}</h3>
+                        <p class="text-gray-600">${doctor.specialization || 'General Practitioner'}</p>
+                    </div>
+                    <div>
+                        ${buttonHtml}
+                    </div>
+                </div>
+            `;
+            
+            doctorsList.appendChild(doctorCard);
+        });
+    } catch (error) {
+        console.error('Error loading doctors:', error);
+        document.getElementById('doctors-list').innerHTML = `
+            <div class="text-center py-6 text-red-500">
+                <p>Error loading doctors. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+// Filter doctors based on search input
+function filterDoctors() {
+    const searchTerm = document.getElementById('doctor-search').value.toLowerCase();
+    const doctorCards = document.querySelectorAll('#doctors-list > div');
+    
+    doctorCards.forEach(card => {
+        const name = card.dataset.name || '';
+        const specialization = card.dataset.specialization || '';
+        
+        if (name.includes(searchTerm) || specialization.includes(searchTerm)) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Send connection request to a doctor
+async function sendConnectionRequest(doctorId) {
+    try {
+        const response = await fetch(`/api/users/connections/request/${doctorId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            // Update the button to show pending
+            const doctorCard = document.querySelector(`[data-doctor-id="${doctorId}"]`);
+            if (doctorCard) {
+                const connectButton = doctorCard.querySelector('button');
+                connectButton.disabled = true;
+                connectButton.className = 'bg-yellow-100 text-yellow-800 px-4 py-2 rounded';
+                connectButton.textContent = 'Request Sent';
+            }
+            
+            // Refresh the lists
+            loadConnectionRequests();
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || 'Failed to send connection request'}`);
+        }
+    } catch (error) {
+        console.error('Error sending connection request:', error);
+        alert('Error sending connection request. Please try again.');
+    }
+}
+
+// Load connection requests
+async function loadConnectionRequests() {
+    try {
+        const response = await fetch('/api/users/connections/requests');
+        const data = await response.json();
+        
+        const requestsContainer = document.getElementById('connection-requests');
+        const noRequestsElement = document.getElementById('no-requests');
+        
+        // Handle incoming requests (for doctors)
+        const incomingRequests = data.incomingRequests || [];
+        
+        // Handle outgoing requests (for patients)
+        const outgoingRequests = data.outgoingRequests || [];
+        
+        // Clear the container
+        requestsContainer.innerHTML = '';
+        
+        // Show appropriate message if no requests
+        if (incomingRequests.length === 0 && outgoingRequests.length === 0) {
+            requestsContainer.appendChild(noRequestsElement);
+            return;
+        }
+        
+        // Add outgoing requests (for patients)
+        if (outgoingRequests.length > 0) {
+            requestsContainer.innerHTML += `<h3 class="font-medium text-gray-700 mb-2">Outgoing Requests</h3>`;
+            
+            outgoingRequests.forEach(request => {
+                const requestCard = document.createElement('div');
+                requestCard.className = 'border border-gray-200 rounded-lg p-4 mb-4';
+                requestCard.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="font-semibold">Dr. ${request.receiverName}</h4>
+                            <p class="text-sm text-gray-600">Request sent on ${new Date(request.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <div>
+                            <span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-sm">Pending</span>
+                        </div>
+                    </div>
+                `;
+                requestsContainer.appendChild(requestCard);
+            });
+        }
+        
+        // Add incoming requests (for doctors)
+        if (incomingRequests.length > 0) {
+            requestsContainer.innerHTML += `<h3 class="font-medium text-gray-700 mb-2 mt-4">Incoming Requests</h3>`;
+            
+            incomingRequests.forEach(request => {
+                const requestCard = document.createElement('div');
+                requestCard.className = 'border border-gray-200 rounded-lg p-4';
+                requestCard.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="font-semibold">${request.senderName}</h4>
+                            <p class="text-sm text-gray-600">Request received on ${new Date(request.createdAt).toLocaleDateString()}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="acceptRequest('${request.id}')" 
+                                    class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                                Accept
+                            </button>
+                            <button onclick="rejectRequest('${request.id}')" 
+                                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+                                Reject
+                            </button>
+                        </div>
+                    </div>
+                `;
+                requestsContainer.appendChild(requestCard);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading connection requests:', error);
+        document.getElementById('connection-requests').innerHTML = `
+            <div class="text-center py-6 text-red-500">
+                <p>Error loading connection requests. Please try again.</p>
+            </div>
+        `;
+    }
+}
+
+// Accept a connection request
+async function acceptRequest(requestId) {
+    try {
+        const response = await fetch(`/api/users/connections/accept/${requestId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            // Refresh the lists
+            loadConnectionRequests();
+            loadConnections();
+            loadDoctors(); // To update button states
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || 'Failed to accept connection request'}`);
+        }
+    } catch (error) {
+        console.error('Error accepting connection request:', error);
+        alert('Error accepting connection request. Please try again.');
+    }
+}
+
+// Reject a connection request
+async function rejectRequest(requestId) {
+    try {
+        const response = await fetch(`/api/users/connections/reject/${requestId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (response.ok) {
+            // Refresh the connection requests list
+            loadConnectionRequests();
+        } else {
+            const errorData = await response.json();
+            alert(`Error: ${errorData.error || 'Failed to reject connection request'}`);
+        }
+    } catch (error) {
+        console.error('Error rejecting connection request:', error);
+        alert('Error rejecting connection request. Please try again.');
+    }
+}
+
+// Load connections (My Doctors)
+async function loadConnections() {
+    try {
+        const response = await fetch('/api/users/connections');
+        const data = await response.json();
+        
+        const doctorsContainer = document.getElementById('my-doctors');
+        const noConnectionsElement = document.getElementById('no-connections');
+        
+        // Get connections that are doctors
+        const doctorConnections = (data.connections || []).filter(conn => conn.role === 'doctor');
+        
+        // Clear the container
+        doctorsContainer.innerHTML = '';
+        
+        // Show appropriate message if no connections
+        if (doctorConnections.length === 0) {
+            doctorsContainer.appendChild(noConnectionsElement);
+            return;
+        }
+        
+        // Add each doctor connection
+        doctorConnections.forEach(doctor => {
+            const doctorCard = document.createElement('div');
+            doctorCard.className = 'border border-gray-200 rounded-lg p-4';
+            doctorCard.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h3 class="font-semibold text-lg">Dr. ${doctor.displayName}</h3>
+                        <p class="text-gray-600">${doctor.specialization || 'General Practitioner'}</p>
+                    </div>
+                    <div>
+                        <a href="/profile/${doctor.id}" class="text-health-600 hover:text-health-800">View Profile</a>
+                    </div>
+                </div>
+            `;
+            doctorsContainer.appendChild(doctorCard);
+        });
+    } catch (error) {
+        console.error('Error loading connections:', error);
+        document.getElementById('my-doctors').innerHTML = `
+            <div class="text-center py-6 text-red-500">
+                <p>Error loading doctors. Please try again.</p>
+            </div>
+        `;
+    }
+}
+</script>

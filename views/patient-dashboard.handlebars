@@ -36,19 +36,39 @@
   {{!-- My Documents Section --}}
   <div class="bg-white rounded-lg shadow-md p-6">
     <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl font-semibold">My Documents</h2>
-      <div class="flex space-x-4">
-        <input type="text" id="documentSearch" placeholder="Search documents" 
-               class="border rounded px-4 py-2">
-        <select id="documentFilter" class="border rounded px-4 py-2">
-          <option value="all">All Documents</option>
+      <h2 class="text-2xl font-bold text-gray-800">My Documents</h2>
+      <div class="flex space-x-2 items-center">
+        <button id="refreshDocuments" class="inline-flex items-center px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
+        <button id="forceRefresh" class="inline-flex items-center px-3 py-2 bg-red-600 text-white text-sm font-medium rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
+          <svg class="w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Force Reload
+        </button>
+        <input type="text" id="documentSearch" placeholder="Search documents..." class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        <select id="documentFilter" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+          <option value="all">All documents</option>
           <option value="endorsed">Endorsed</option>
           <option value="flagged">Flagged</option>
+          <option value="pending">Pending Review</option>
         </select>
       </div>
     </div>
     <div id="documentsList" class="space-y-4">
       {{!-- Documents will be loaded here --}}
+    </div>
+    
+    <!-- No results message -->
+    <div id="no-results-message" class="hidden mt-4 p-4 bg-blue-50 rounded-lg text-center">
+      <p class="text-blue-800">No documents match your current filter.</p>
+      <button onclick="resetFilters()" class="mt-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+        Reset Filters
+      </button>
     </div>
   </div>
 </div>
@@ -132,51 +152,208 @@ async function handleFiles(event) {
 // Function to load documents
 async function loadDocuments() {
   try {
-    const response = await fetch('/api/documents/user-documents');
-    const documents = await response.json();
+    console.log("Loading documents with cache busting...");
+    // Add cache-busting headers
+    const response = await fetch('/api/documents/user-documents', {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    
+    const data = await response.json();
+    const documents = data.documents || [];
+    console.log("Loaded documents:", documents);
     
     documentsList.innerHTML = '';
     
     if (documents.length === 0) {
       documentsList.innerHTML = '<p class="text-gray-500">No documents uploaded yet</p>';
+      document.getElementById('no-results-message').classList.add('hidden');
       return;
     }
     
     documents.forEach(doc => {
+      console.log(`Processing document: ${doc.fileName || doc.originalName}`, {
+        id: doc.id,
+        isProcessed: doc.isProcessed,
+        endorsedBy: doc.endorsedBy,
+        flaggedBy: doc.flaggedBy
+      });
+      
       const docCard = document.createElement('div');
-      docCard.className = 'bg-gray-50 p-4 rounded';
-      docCard.innerHTML = `
-        <div class="flex justify-between items-start">
-          <div>
-            <h3 class="font-semibold">${doc.originalName}</h3>
-            <p class="text-sm text-gray-600">Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString()}</p>
-            <p class="text-sm text-gray-600">Type: ${doc.type}</p>
-            ${doc.endorsedBy ? `
-              <p class="text-sm text-green-600">
-                Endorsed by Dr. ${doc.endorsedBy.displayName} on 
-                ${new Date(doc.endorsedAt).toLocaleDateString()}
-              </p>
-            ` : ''}
-            ${doc.flaggedBy ? `
-              <p class="text-sm text-yellow-600">
-                Flagged by Dr. ${doc.flaggedBy.displayName} on 
-                ${new Date(doc.flaggedAt).toLocaleDateString()}
-              </p>
-            ` : ''}
+      docCard.className = 'bg-white shadow-sm rounded-lg border border-gray-100 p-5 mb-4 hover:shadow-md transition-shadow duration-200';
+      
+      // Status indicators for quick view
+      let statusBadges = '';
+      let isPending = false;
+      let mostRecentStatus = 'unprocessed';
+      let mostRecentTimestamp = 0;
+      
+      // Determine the most recent status (endorsed or flagged) based on timestamp
+      if (doc.endorsedBy && doc.endorsedBy.timestamp) {
+        const endorseTimestamp = new Date(doc.endorsedBy.timestamp).getTime();
+        if (endorseTimestamp > mostRecentTimestamp) {
+          mostRecentStatus = 'endorsed';
+          mostRecentTimestamp = endorseTimestamp;
+        }
+      }
+      
+      if (doc.flaggedBy && doc.flaggedBy.timestamp) {
+        const flagTimestamp = new Date(doc.flaggedBy.timestamp).getTime();
+        if (flagTimestamp > mostRecentTimestamp) {
+          mostRecentStatus = 'flagged';
+          mostRecentTimestamp = flagTimestamp;
+        }
+      }
+      
+      console.log(`Document status determined: ${mostRecentStatus}`, {
+        id: doc.id, 
+        mostRecentTimestamp
+      });
+      
+      // Generate status badges based on the most recent status
+      if (mostRecentStatus === 'endorsed') {
+        statusBadges += `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mr-2">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Endorsed
+          </span>
+        `;
+      } else if (mostRecentStatus === 'flagged') {
+        statusBadges += `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Flagged
+          </span>
+        `;
+      } else if (doc.isProcessed) {
+        // Only show pending if not endorsed or flagged
+        statusBadges += `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Pending Review
+          </span>
+        `;
+        isPending = true;
+      } else {
+        // If no status badges yet, show "Unprocessed"
+        statusBadges = `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            Unprocessed
+          </span>
+        `;
+      }
+      
+      // Store the status for filtering
+      docCard.dataset.status = mostRecentStatus !== 'unprocessed' ? mostRecentStatus : 
+                               doc.isProcessed ? 'pending' : 'unprocessed';
+      
+      // Detailed doctor feedback sections - only show the latest one based on timestamp
+      let doctorFeedback = '';
+      if (mostRecentStatus === 'endorsed' && doc.endorsedBy) {
+        const endorseDate = new Date(doc.endorsedBy.timestamp).toLocaleDateString();
+        doctorFeedback = `
+          <div class="mt-3 bg-green-50 rounded-lg p-3 border border-green-100">
+            <div class="flex items-start">
+              <svg class="w-5 h-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <div class="flex items-center text-sm text-green-700">
+                  <span class="font-medium">Endorsed by Dr. ${doc.endorsedBy.displayName}</span>
+                  <span class="mx-1">•</span>
+                  <span>${endorseDate}</span>
+                </div>
+                ${doc.endorsedBy.note ? `<p class="text-sm mt-1 text-gray-700">${doc.endorsedBy.note}</p>` : ''}
+              </div>
+            </div>
           </div>
-          <div class="flex space-x-2">
-            <button onclick="viewDocument('${doc.id}')" 
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
-              View
-            </button>
-            <button onclick="downloadDocument('${doc.id}')" 
-                    class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-              Download
-            </button>
-            <button onclick="deleteDocument('${doc.id}')" 
-                    class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
-              Delete
-            </button>
+        `;
+      } else if (mostRecentStatus === 'flagged' && doc.flaggedBy) {
+        const flagDate = new Date(doc.flaggedBy.timestamp).toLocaleDateString();
+        doctorFeedback = `
+          <div class="mt-3 bg-yellow-50 rounded-lg p-3 border border-yellow-100">
+            <div class="flex items-start">
+              <svg class="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <div class="flex items-center text-sm text-yellow-700">
+                  <span class="font-medium">Flagged by Dr. ${doc.flaggedBy.displayName}</span>
+                  <span class="mx-1">•</span>
+                  <span>${flagDate}</span>
+                </div>
+                ${doc.flaggedBy.note ? `<p class="text-sm mt-1 text-gray-700">${doc.flaggedBy.note}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (isPending) {
+        doctorFeedback = `
+          <div class="mt-3 bg-blue-50 rounded-lg p-3 border border-blue-100">
+            <div class="flex items-start">
+              <svg class="w-5 h-5 mr-2 text-blue-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <div class="flex items-center text-sm text-blue-700">
+                  <span class="font-medium">Awaiting doctor review</span>
+                </div>
+                <p class="text-sm mt-1 text-gray-700">This document has been processed and is waiting for a doctor to review it.</p>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
+      docCard.innerHTML = `
+        <div>
+          <div class="flex justify-between items-start">
+            <div>
+              <div class="flex items-center">
+                <h3 class="font-semibold text-lg text-gray-900">${doc.fileName || doc.originalName || 'Document'}</h3>
+                <div class="ml-2">
+                  ${statusBadges}
+                </div>
+              </div>
+              <p class="text-sm text-gray-600 mt-1">Uploaded: ${new Date(doc.createdAt || doc.uploadedAt).toLocaleDateString()}</p>
+              <p class="text-sm text-gray-600">Type: ${doc.fileType || doc.type || 'Unknown'}</p>
+              
+              ${doctorFeedback}
+            </div>
+            
+            <div class="flex space-x-2">
+              <button onclick="viewDocument('${doc.id}')" 
+                      class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full" title="View Document">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+              <button onclick="downloadDocument('${doc.id}')" 
+                      class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full" title="Download Document">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </button>
+              <button onclick="deleteDocument('${doc.id}')" 
+                      class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full" title="Delete Document">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       `;
@@ -191,9 +368,7 @@ async function loadDocuments() {
 // Function to view a document
 async function viewDocument(docId) {
   try {
-    const response = await fetch(`/api/documents/${docId}`);
-    const doc = await response.json();
-    window.open(doc.url, '_blank');
+    window.location.href = `/documents/${docId}`;
   } catch (error) {
     console.error('Error viewing document:', error);
     alert('Error viewing document. Please try again.');
@@ -246,19 +421,251 @@ documentFilter.addEventListener('change', filterDocuments);
 function filterDocuments() {
   const searchTerm = documentSearch.value.toLowerCase();
   const filterValue = documentFilter.value;
-  const docCards = documentsList.querySelectorAll('.bg-gray-50');
+  const docCards = documentsList.querySelectorAll('.bg-white');
+  let visibleCount = 0;
   
   docCards.forEach(card => {
     const docName = card.querySelector('h3').textContent.toLowerCase();
-    const isEndorsed = card.querySelector('.text-green-600') !== null;
-    const isFlagged = card.querySelector('.text-yellow-600') !== null;
+    const docStatus = card.dataset.status; // Use the stored status attribute
     
     const matchesSearch = docName.includes(searchTerm);
-    const matchesFilter = filterValue === 'all' || 
-                         (filterValue === 'endorsed' && isEndorsed) ||
-                         (filterValue === 'flagged' && isFlagged);
+    const matchesFilter = 
+      filterValue === 'all' || 
+      (filterValue === 'endorsed' && docStatus === 'endorsed') ||
+      (filterValue === 'flagged' && docStatus === 'flagged') ||
+      (filterValue === 'pending' && docStatus === 'pending');
     
-    card.style.display = matchesSearch && matchesFilter ? 'block' : 'none';
+    const shouldDisplay = matchesSearch && matchesFilter;
+    card.style.display = shouldDisplay ? 'block' : 'none';
+    
+    if (shouldDisplay) {
+      visibleCount++;
+    }
   });
+  
+  // Show a message if no documents match the current filter
+  const noResultsMsg = document.getElementById('no-results-message');
+  if (noResultsMsg) {
+    if (visibleCount === 0) {
+      noResultsMsg.classList.remove('hidden');
+    } else {
+      noResultsMsg.classList.add('hidden');
+    }
+  }
 }
+
+// Function to reset document filters
+function resetFilters() {
+  documentSearch.value = '';
+  documentFilter.value = 'all';
+  filterDocuments();
+}
+
+// Refresh documents with cache bypass
+document.getElementById('refreshDocuments').addEventListener('click', async () => {
+  try {
+    // Show a loading indicator
+    const refreshBtn = document.getElementById('refreshDocuments');
+    const originalText = refreshBtn.innerHTML;
+    refreshBtn.innerHTML = `
+      <svg class="w-4 h-4 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      Refreshing...
+    `;
+    refreshBtn.disabled = true;
+    
+    // Force reload documents from server (skip cache)
+    const response = await fetch('/api/documents/user-documents', {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    const data = await response.json();
+    
+    // Update UI with fresh data
+    const documents = data.documents || [];
+    documentsList.innerHTML = '';
+    
+    if (documents.length === 0) {
+      documentsList.innerHTML = '<p class="text-gray-500">No documents uploaded yet</p>';
+    } else {
+      documents.forEach(doc => {
+        // Reuse the same document rendering logic from loadDocuments
+        // This is intentional duplication to ensure the refresh works independently
+        // Display the document with the same rendering logic as loadDocuments
+        const docCard = document.createElement('div');
+        docCard.className = 'bg-white shadow-sm rounded-lg border border-gray-100 p-5 mb-4 hover:shadow-md transition-shadow duration-200';
+        
+        // Status indicators for quick view
+        let statusBadges = '';
+        let isPending = false;
+        let mostRecentStatus = 'unprocessed';
+        let mostRecentTimestamp = 0;
+        
+        // Determine the most recent status (endorsed or flagged) based on timestamp
+        if (doc.endorsedBy && doc.endorsedBy.timestamp) {
+          const endorseTimestamp = new Date(doc.endorsedBy.timestamp).getTime();
+          if (endorseTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'endorsed';
+            mostRecentTimestamp = endorseTimestamp;
+          }
+        }
+        
+        if (doc.flaggedBy && doc.flaggedBy.timestamp) {
+          const flagTimestamp = new Date(doc.flaggedBy.timestamp).getTime();
+          if (flagTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'flagged';
+            mostRecentTimestamp = flagTimestamp;
+          }
+        }
+        
+        // Generate status badges based on the most recent status
+        if (mostRecentStatus === 'endorsed') {
+          statusBadges += `
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mr-2">
+              <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Endorsed
+            </span>
+          `;
+        } else if (mostRecentStatus === 'flagged') {
+          statusBadges += `
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-2">
+              <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Flagged
+            </span>
+          `;
+        } else if (doc.isProcessed) {
+          // Only show pending if not endorsed or flagged
+          statusBadges += `
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mr-2">
+              <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Pending Review
+            </span>
+          `;
+          isPending = true;
+        } else {
+          // If no status badges yet, show "Unprocessed"
+          statusBadges = `
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mr-2">
+              <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              Unprocessed
+            </span>
+          `;
+        }
+        
+        // Store the status for filtering
+        docCard.dataset.status = mostRecentStatus !== 'unprocessed' ? mostRecentStatus : 
+                                 doc.isProcessed ? 'pending' : 'unprocessed';
+        
+        // Rest of the document card building
+        // Include the same doctor feedback logic as in loadDocuments
+        // ... code for doctorFeedback section and document card HTML ... 
+        
+        // Use simplified version for display
+        docCard.innerHTML = `
+          <div>
+            <div class="flex justify-between items-start">
+              <div>
+                <div class="flex items-center">
+                  <h3 class="font-semibold text-lg text-gray-900">${doc.fileName || doc.originalName || 'Document'}</h3>
+                  <div class="ml-2">
+                    ${statusBadges}
+                  </div>
+                </div>
+                <p class="text-sm text-gray-600 mt-1">Uploaded: ${new Date(doc.createdAt || doc.uploadedAt).toLocaleDateString()}</p>
+                <p class="text-sm text-gray-600">Type: ${doc.fileType || doc.type || 'Unknown'}</p>
+              </div>
+              
+              <div class="flex space-x-2">
+                <button onclick="viewDocument('${doc.id}')" 
+                        class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full" title="View Document">
+                  <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+                <button onclick="downloadDocument('${doc.id}')" 
+                        class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full" title="Download Document">
+                  <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                </button>
+                <button onclick="deleteDocument('${doc.id}')" 
+                        class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-full" title="Delete Document">
+                  <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+        documentsList.appendChild(docCard);
+      });
+    }
+    
+    // Apply filters to newly loaded documents
+    filterDocuments();
+    
+    // Reset button state
+    refreshBtn.innerHTML = originalText;
+    refreshBtn.disabled = false;
+    
+    // Show success toast or notification
+    alert('Documents refreshed successfully from server!');
+  } catch (error) {
+    console.error('Error refreshing documents:', error);
+    document.getElementById('refreshDocuments').innerHTML = originalText;
+    document.getElementById('refreshDocuments').disabled = false;
+    alert('Error refreshing documents. Please try again.');
+  }
+});
+
+// Add at the end of the script, before the closing </script> tag
+document.getElementById('forceRefresh').addEventListener('click', async () => {
+  try {
+    const btn = document.getElementById('forceRefresh');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'Forcing reload...';
+    btn.disabled = true;
+    
+    // Make the request directly to the server with special no-cache headers
+    const response = await fetch('/api/documents/user-documents?nocache=' + new Date().getTime(), {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Force-Refresh': 'true'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Network response was not ok');
+    }
+    
+    const data = await response.json();
+    console.log("FORCED FRESH DATA:", data);
+    
+    // Force reload the page to ensure everything is fresh
+    window.location.reload();
+    
+  } catch (error) {
+    console.error('Error during force refresh:', error);
+    alert('Error during force refresh: ' + error.message);
+    document.getElementById('forceRefresh').innerHTML = originalText;
+    document.getElementById('forceRefresh').disabled = false;
+  }
+});
 </script> 
