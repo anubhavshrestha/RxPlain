@@ -9,11 +9,15 @@ import { fileURLToPath } from 'url';
 import { db } from './config/firebase-admin.js';
 import { marked } from 'marked';
 
+// Import container and services
+import { container, getService } from './config/dependency/setup.js';
+
 // Import routes
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import documentRoutes from './routes/documents.js';
 import userRoutes from './routes/users.js';
+import medScheduleRoutes from './routes/med-schedules.js';
 import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
 // Initialize env variables
@@ -103,12 +107,27 @@ app.engine('handlebars', engine({
 app.set('view engine', 'handlebars');
 app.set('views', path.join(__dirname, 'views'));
 
+// Initialize services and make them available to all routes
+console.log('[App Startup] Initializing OOP services');
+app.use((req, res, next) => {
+  // Initialize key services for global access
+  req.services = {
+    userService: getService('userService'),
+    documentService: getService('documentService'),
+    connectionService: getService('connectionService'),
+    medicationScheduleService: getService('medicationScheduleService')
+  };
+  next();
+});
+
 // API Routes
 app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/documents', documentRoutes);
 console.log('[App Setup] Mounted documentRoutes under /api/documents'); // Log mounting
 app.use('/api/users', userRoutes);
+app.use('/api/med-schedules', medScheduleRoutes);
+console.log('[App Setup] Mounted medScheduleRoutes under /api/med-schedules'); // Log mounting
 
 // Public Routes
 app.get('/', (req, res) => {
@@ -209,14 +228,16 @@ app.get('/medications', isAuthenticated, async (req, res) => {
   try {
     console.log(`[App Route] Rendering /medications page for user: ${req.user?.uid}`);
 
-    // Get user data from Firestore
-    const userDoc = await db.collection('users').doc(req.user.uid).get();
+    // Get services from container
+    const userService = getService('userService');
+    const documentService = getService('documentService');
     
-    if (!userDoc.exists) {
+    // Get user data
+    const userData = await userService.getUserData(req.user.uid);
+    
+    if (!userData) {
       return res.redirect('/register');
     }
-    
-    const userData = userDoc.data();
     
     // Render the medications page
     res.render('medications', { 

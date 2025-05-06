@@ -357,130 +357,56 @@
     }
     
     function fetchSchedules() {
-      console.log('Attempting to fetch medication schedules...');
-      
-      // First, check if the user is authenticated via Firebase
-      try {
-        if (typeof firebase === 'undefined' || !firebase.auth) {
-          console.error('Firebase not initialized or available');
-          showError('Firebase authentication is not available. Please refresh the page or try again later.');
-          return;
-        }
-        
-        if (!firebase.auth().currentUser) {
-          console.log('User not authenticated, waiting for auth state to change');
-          // Listen for auth state changes
-          firebase.auth().onAuthStateChanged(function(user) {
-            if (user) {
-              console.log('User authenticated, fetching schedules');
-              // User is signed in, fetch schedules
-              doFetchSchedules();
-            } else {
-              console.log('User still not authenticated after auth state change');
-              // User is still not signed in, show error
-              showAuthError();
-            }
-          });
-        } else {
-          console.log('User already authenticated, fetching schedules');
-          // User is already signed in, fetch schedules
+      console.log('Fetching medication schedules...');
+      // Check if the user is authenticated
+      auth.onAuthStateChanged(function(user) {
+        if (user) {
+          console.log('User is logged in, proceeding to fetch schedules');
           doFetchSchedules();
+        } else {
+          console.log('User is not logged in, redirecting to login');
+          window.location.href = '/login';
         }
-      } catch (error) {
-        console.error('Error in authentication check:', error);
-        showError('Authentication error: ' + error.message);
-      }
-    }
-    
-    function showAuthError() {
-      loadingIndicator.classList.add('hidden');
-      errorContainer.classList.remove('hidden');
-      errorMessage.innerHTML = 'You need to be logged in to view your medication schedules. <a href="/login" class="text-red-800 underline">Click here to log in</a>.';
-    }
-    
-    function showError(message) {
-      loadingIndicator.style.display = 'none';
-      errorContainer.style.display = 'block';
-      errorMessage.textContent = message;
-      
-      // If this is an authentication error, provide a link to login
-      if (message.includes('Authentication') || message.includes('log in')) {
-        errorMessage.innerHTML = `You need to be logged in to view your medication schedules. <a href="/login" class="text-red-800 underline">Click here to log in</a>.`;
-      }
+      });
     }
     
     function doFetchSchedules() {
-      console.log('Starting to fetch schedules...');
-      
-      try {
-        // First get an ID token from Firebase
-        firebase.auth().currentUser.getIdToken(true)
-          .then(idToken => {
-            console.log('Got ID token, length:', idToken ? idToken.length : 0);
-            // Now make the API call with the token
-            return fetch('/api/documents/med-schedules', {
-              headers: {
-                'Authorization': `Bearer ${idToken}`
-              }
-            });
-          })
-          .then(response => {
-            console.log('Schedule API response status:', response.status);
-            if (!response.ok) {
-              const statusCode = response.status;
-              const statusText = response.statusText;
-              console.log('Error status:', statusCode);
-              console.log('Error statusText:', statusText);
-              
-              // Try to get more info from the response body if possible
-              return response.json().then(errorData => {
-                console.log('Error response body:', JSON.stringify(errorData));
-                throw new Error(`HTTP error! Status: ${statusCode}`);
-              }).catch(jsonError => {
-                // If parsing as JSON fails, just throw the original error
-                throw new Error(`HTTP error! Status: ${statusCode}`);
-              });
+      return fetch('/api/med-schedules', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin' // Include cookies
+      })
+      .then(response => {
+        console.log('Schedule API response status:', response.status);
+
+        if (!response.ok) {
+          console.error('Error status:', response.status);
+          console.error('Error statusText:', response.statusText);
+          
+          return response.text().then(text => {
+            try {
+              const errorData = JSON.parse(text);
+              console.error('Error response body:', errorData);
+            } catch (e) {
+              console.error('Error response body (text):', text);
             }
-            return response.json();
-          })
-          .then(data => {
-            console.log('Schedule data received:', JSON.stringify(data));
-            
-            // Hide loader
-            loadingIndicator.style.display = 'none';
-            
-            // Check for success but empty schedules list
-            if (data.success && data.schedules && data.schedules.length === 0) {
-              console.log('No schedules found, showing empty state');
-              emptyState.style.display = 'block';
-              schedulesList.style.display = 'none';
-              return;
-            }
-            
-            // Check for success with schedules
-            if (data.success && data.schedules && data.schedules.length > 0) {
-              console.log(`Found ${data.schedules.length} schedules, rendering list`);
-              // Render schedules
-              renderSchedules(data.schedules);
-              return;
-            }
-            
-            // If we get here, something unexpected happened
-            console.error('Invalid response format:', data);
-            showError('Received invalid data format from server');
-          })
-          .catch(error => {
-            console.error('Error fetching schedules:', error);
-            showError(error.message || 'Failed to load medication schedules');
-          })
-          .finally(() => {
-            loadingIndicator.style.display = 'none';
+            throw new Error(`HTTP error! Status: ${response.status}`);
           });
-      } catch (error) {
-        console.error('Error in doFetchSchedules:', error);
-        showError(error.message || 'Failed to load medication schedules');
-        loadingIndicator.style.display = 'none';
-      }
+        }
+        
+        return response.json();
+      })
+      .then(data => {
+        console.log('Schedules fetched successfully:', data);
+        displaySchedules(data.schedules || []);
+        return data;
+      })
+      .catch(error => {
+        console.error('Error fetching schedules:', error);
+        displayErrorAlert('Failed to fetch medication schedules');
+      });
     }
     
     function renderSchedules(schedules) {
@@ -720,72 +646,31 @@
     
     // Function to delete a schedule
     function deleteSchedule(scheduleId) {
-      console.log(`Deleting schedule: ${scheduleId}`);
-      
-      // Show loading state
-      const loadingDiv = document.createElement('div');
-      loadingDiv.className = 'fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50';
-      loadingDiv.innerHTML = `
-        <div class="bg-white p-5 rounded-lg shadow-xl text-center">
-          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
-          <p class="text-gray-700">Deleting schedule...</p>
-        </div>
-      `;
-      document.body.appendChild(loadingDiv);
-      
-      // Make delete request to API
-      fetch(`/api/documents/med-schedules/${scheduleId}`, {
-        method: 'DELETE'
-      })
+      if (confirm('Are you sure you want to delete this medication schedule?')) {
+        fetch(`/api/med-schedules/${scheduleId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'same-origin'
+        })
         .then(response => {
           if (!response.ok) {
-            throw new Error(`Failed to delete schedule: ${response.status} ${response.statusText}`);
+            throw new Error('Failed to delete schedule');
           }
           return response.json();
         })
         .then(data => {
-          console.log('Schedule deleted successfully', data);
-          
-          // Remove the loading div
-          document.body.removeChild(loadingDiv);
-          
-          // Show success message
-          const successDiv = document.createElement('div');
-          successDiv.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 shadow-md rounded-md z-50';
-          successDiv.innerHTML = `
-            <div class="flex items-center">
-              <div class="py-1"><svg class="h-6 w-6 text-green-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg></div>
-              <div>
-                <p class="font-bold">Success</p>
-                <p class="text-sm">Schedule deleted successfully.</p>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(successDiv);
-          
-          // Remove success message after 3 seconds
-          setTimeout(() => {
-            if (document.body.contains(successDiv)) {
-              document.body.removeChild(successDiv);
-            }
-          }, 3000);
-          
-          // Refresh schedules list
-          fetchSchedules();
+          displaySuccessAlert('Medication schedule deleted successfully');
+          fetchSchedules(); // Refresh the list
         })
         .catch(error => {
           console.error('Error deleting schedule:', error);
-          
-          // Remove the loading div
-          document.body.removeChild(loadingDiv);
-          
-          // Show error message
-          showError(`Failed to delete schedule: ${error.message}`);
+          displayErrorAlert('Failed to delete medication schedule');
         });
+      }
     }
-    
+      
     // Function to toggle schedule active state
     function toggleScheduleActive(scheduleId, currentActiveState) {
       console.log(`Toggling schedule ${scheduleId} active state from: ${currentActiveState}`);
@@ -807,16 +692,17 @@
       };
       
       // Make update request to API
-      fetch(`/api/documents/med-schedules/${scheduleId}`, {
+      fetch(`/api/med-schedules/${scheduleId}/toggle-active`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'same-origin',
         body: JSON.stringify(updateData)
       })
         .then(response => {
           if (!response.ok) {
-            throw new Error(`Failed to update schedule: ${response.status} ${response.statusText}`);
+            throw new Error('Failed to update schedule status');
           }
           return response.json();
         })
@@ -904,11 +790,12 @@
       }
       
       // Call API to update schedule
-      fetch(`/api/documents/med-schedules/${currentScheduleId}`, {
+      fetch(`/api/med-schedules/${currentScheduleId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
         },
+        credentials: 'same-origin',
         body: JSON.stringify({
           name: name,
           active: active
@@ -916,7 +803,7 @@
       })
       .then(response => {
         if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+          throw new Error('Failed to update schedule');
         }
         return response.json();
       })
@@ -938,6 +825,56 @@
       .catch(error => {
         alert(`Error updating schedule: ${error.message}`);
       });
+    }
+
+    // Function to display success alert
+    function displaySuccessAlert(message) {
+      const successDiv = document.createElement('div');
+      successDiv.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 shadow-md rounded-md z-50';
+      successDiv.innerHTML = `
+        <div class="flex items-center">
+          <div class="py-1"><svg class="h-6 w-6 text-green-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg></div>
+          <div>
+            <p class="font-bold">Success</p>
+            <p class="text-sm">${message}</p>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(successDiv);
+      
+      // Remove success message after 3 seconds
+      setTimeout(() => {
+        if (document.body.contains(successDiv)) {
+          document.body.removeChild(successDiv);
+        }
+      }, 3000);
+    }
+    
+    // Function to display error alert
+    function displayErrorAlert(message) {
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'fixed top-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 shadow-md rounded-md z-50';
+      errorDiv.innerHTML = `
+        <div class="flex items-center">
+          <div class="py-1"><svg class="h-6 w-6 text-red-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg></div>
+          <div>
+            <p class="font-bold">Error</p>
+            <p class="text-sm">${message}</p>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(errorDiv);
+      
+      // Remove error message after 5 seconds
+      setTimeout(() => {
+        if (document.body.contains(errorDiv)) {
+          document.body.removeChild(errorDiv);
+        }
+      }, 5000);
     }
   });
 </script> 

@@ -492,7 +492,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Call API to save/update schedule
-        fetch(`/api/documents/med-schedules/${scheduleData.id}`, {
+        fetch(`/api/med-schedules/${scheduleData.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
@@ -529,5 +529,39 @@ document.addEventListener('DOMContentLoaded', () => {
         followupRecommendation.textContent = 'Schedule a follow-up with your doctor to review this medication plan.';
         scheduleWarning.classList.add('hidden');
         warningInteractions.innerHTML = '';
+    }
+
+    // Function to toggle schedule active state
+    function toggleScheduleActive(scheduleData, isActive) {
+        // Make update request to API
+        fetch(`/api/med-schedules/${scheduleData.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                isActive: isActive
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to update schedule: ${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Schedule updated successfully', data);
+            
+            // Show success message
+            showNotification('success', `Schedule ${isActive ? 'activated' : 'deactivated'} successfully`);
+            
+            // Refresh schedules list or update UI
+            loadMedicationsData();
+        })
+        .catch(error => {
+            console.error('Error updating schedule:', error);
+            showNotification('error', `Failed to update schedule: ${error.message}`);
+        });
     }
 }); 

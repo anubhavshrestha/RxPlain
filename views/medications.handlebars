@@ -811,9 +811,10 @@
             }
             
             // Call API to save schedule
-            fetch(`/api/documents/med-schedules/${scheduleData.id}`, {
+            fetch(`/api/med-schedules/${scheduleData.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
                 body: JSON.stringify({ 
                     name: scheduleData.name,
                     active: true
