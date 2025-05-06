@@ -475,35 +475,36 @@ function addDocumentToList(documentData) {
     
     // Set document item HTML
     documentItem.innerHTML = `
-        <div class="flex items-start">
-            <div class="flex-shrink-0 mr-2">
-                <input type="checkbox" class="select-doc-checkbox h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded" data-id="${documentData.id}">
-            </div>
-            <div class="w-10 h-10 mr-4 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    ${fileIcon}
-            </svg>
-            </div>
-            <div class="flex-grow">
-                <div class="flex items-center flex-wrap">
-                    <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
-                    ${processingStatus}
-                    ${endorsementStatus}
-                    ${documentTypeBadge}
+        <div class="flex items-start justify-between">
+            <div class="flex items-start">
+                <div class="flex-shrink-0 mr-2">
+                    <input type="checkbox" class="select-doc-checkbox h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded" data-id="${documentData.id}">
                 </div>
-                <div class="text-sm text-gray-500 mt-1">
-                    ${fileSize} • Uploaded on ${createdDate}
-                </div>
-                ${doctorFeedback}
-            </div>
-        </div>
-        <div class="flex space-x-2">
-                <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <div class="w-10 h-10 mr-4 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        ${fileIcon}
                 </svg>
-            </button>
+                </div>
+                <div class="flex-grow">
+                    <div class="flex items-center flex-wrap">
+                        <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
+                        ${processingStatus}
+                        ${endorsementStatus}
+                        ${documentTypeBadge}
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">
+                        ${fileSize} • Uploaded on ${createdDate}
+                    </div>
+                    ${doctorFeedback}
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
                 <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI" data-is-processed="${documentData.isProcessed || false}">
                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -515,15 +516,15 @@ function addDocumentToList(documentData) {
                     </svg>
                 </button>
                 <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}" title="Download">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                </button>
                 <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}" title="Delete">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
             </div>
         </div>
     `;
