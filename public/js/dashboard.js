@@ -762,6 +762,19 @@ async function handleFile(file) {
     }
 }
 
+// Show or hide upload progress UI
+function showUploadProgress(show) {
+    if (show) {
+        uploadProgress.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+    } else {
+        uploadProgress.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+    }
+}
+
 // Upload file to server
 function uploadFile(file) {
     const user = auth.currentUser;

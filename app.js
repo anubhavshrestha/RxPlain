@@ -514,6 +514,7 @@ app.get('/profile/:userId', isAuthenticated, async (req, res) => {
     }
     
     // If target user is a doctor, render doctor profile
+    // Allow both patients and doctors to view doctor profiles
     if (targetUserData.role === 'doctor') {
       res.render('doctor-profile', { 
         title: `Dr. ${targetUserData.displayName} - RxPlain`,

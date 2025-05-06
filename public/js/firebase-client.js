@@ -25,19 +25,21 @@ function initializeFirebase() {
 
   // Show loading state
   const authLoading = document.getElementById('auth-loading');
-  const loggedInNav = document.getElementById('logged-in-nav');
+  const patientNav = document.getElementById('patient-nav');
+  const doctorNav = document.getElementById('doctor-nav');
   const loggedOutNav = document.getElementById('logged-out-nav');
   
   if (authLoading) {
     authLoading.classList.remove('hidden');
   }
   
-  // Hide both nav states initially
-  if (loggedInNav) loggedInNav.classList.add('hidden');
+  // Hide all nav states initially
+  if (patientNav) patientNav.classList.add('hidden');
+  if (doctorNav) doctorNav.classList.add('hidden');
   if (loggedOutNav) loggedOutNav.classList.add('hidden');
 
   // Check authentication state
-  auth.onAuthStateChanged((user) => {
+  auth.onAuthStateChanged(async (user) => {
     // Hide loading state
     if (authLoading) {
       authLoading.classList.add('hidden');
@@ -45,13 +47,43 @@ function initializeFirebase() {
     
     if (user) {
       console.log('User is signed in:', user.email);
-      // Update UI for logged-in user
-      if (loggedInNav) loggedInNav.classList.remove('hidden');
+      
+      try {
+        // Fetch the user's data to determine role
+        const db = firebase.firestore();
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          const userRole = userData.role || 'patient'; // Default to patient if role is not specified
+          
+          // Show the appropriate navigation based on user role
+          if (userRole === 'doctor') {
+            if (doctorNav) doctorNav.classList.remove('hidden');
+            if (patientNav) patientNav.classList.add('hidden');
+          } else {
+            if (patientNav) patientNav.classList.remove('hidden');
+            if (doctorNav) doctorNav.classList.add('hidden');
+          }
+        } else {
+          // If user document doesn't exist, default to patient navigation
+          if (patientNav) patientNav.classList.remove('hidden');
+          if (doctorNav) doctorNav.classList.add('hidden');
+          console.warn('User document not found in Firestore');
+        }
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+        // Default to patient navigation on error
+        if (patientNav) patientNav.classList.remove('hidden');
+        if (doctorNav) doctorNav.classList.add('hidden');
+      }
+      
       if (loggedOutNav) loggedOutNav.classList.add('hidden');
     } else {
       console.log('User is signed out');
       // Update UI for logged-out user
-      if (loggedInNav) loggedInNav.classList.add('hidden');
+      if (patientNav) patientNav.classList.add('hidden');
+      if (doctorNav) doctorNav.classList.add('hidden');
       if (loggedOutNav) loggedOutNav.classList.remove('hidden');
     }
   });
