@@ -129,6 +129,15 @@
             <div id="document-list" class="hidden">
                 <!-- Document items will be added here -->
             </div>
+            
+            <!-- Loading overlay -->
+            <div id="dashboard-loading-overlay" class="fixed inset-0 bg-white bg-opacity-90 z-50 flex flex-col items-center justify-center transition-opacity duration-300 ease-in-out">
+                <div class="bg-white p-8 rounded-xl shadow-md max-w-md text-center">
+                    <div class="w-16 h-16 border-4 border-health-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+                    <h3 class="text-xl font-semibold mb-3 text-gray-800">Loading Your Dashboard</h3>
+                    <p class="text-gray-600 text-center">Hold on while we retrieve your documents and prepare your dashboard...</p>
+                </div>
+            </div>
         </div>
     </div>
 </div>

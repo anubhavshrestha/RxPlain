@@ -16,6 +16,7 @@ const searchInput = document.getElementById('search-input');
 const navLoadingIndicator = document.querySelector('.nav-loading');
 const createReportBtn = document.getElementById('create-report-btn');
 const selectedCountDisplay = document.getElementById('selected-count');
+const dashboardLoadingOverlay = document.getElementById('dashboard-loading-overlay');
 
 // --- Caching Constants --- 
 const DOCS_CACHE_KEY = 'rxplain_docs_cache';
@@ -222,12 +223,15 @@ function renderDocumentList(docs) {
 // MODIFIED loadDocuments - Now acts as the trigger/orchestrator
 async function loadDocuments(skipCache = true) { // Changed default to true to disable cache
     console.log('[Dashboard.js] Entering loadDocuments (now initializeDocumentsDisplay)...');
+    
+    // Show loading overlay
+    if (dashboardLoadingOverlay) {
+        dashboardLoadingOverlay.classList.remove('hidden');
+    }
+    
     // This function is now primarily called after auth confirmation or after upload.
     // This function now skips the cache by default while we debug document status issues
     console.log('[Dashboard.js] Cache mechanism temporarily disabled - always fetching fresh data');
-    
-    // Show a less intrusive loading state? Maybe a spinner near the title?
-    // For now, we rely on the background fetch not being too slow after initial cache load.
 
     try {
         const freshDocs = await fetchDocumentsFromServer();
@@ -247,6 +251,11 @@ async function loadDocuments(skipCache = true) { // Changed default to true to d
     } catch (error) {
         console.error('[Dashboard.js] Error in loadDocuments (fetch stage):', error);
         showErrorNotice('Could not refresh document list.'); // Use new notice function
+    } finally {
+        // Hide loading overlay when everything is done
+        if (dashboardLoadingOverlay) {
+            dashboardLoadingOverlay.classList.add('hidden');
+        }
     }
     console.log('[Dashboard.js] Exiting loadDocuments (initializeDocumentsDisplay).');
 }
@@ -1689,6 +1698,11 @@ async function startDashboard() {
     db = app.firestore();
     auth = app.auth();
 
+    // Show loading overlay on initial page load
+    if (dashboardLoadingOverlay) {
+        dashboardLoadingOverlay.classList.remove('hidden');
+    }
+
     // Check if user is authenticated
     auth.onAuthStateChanged(async function(user) {
         // Show loading indicator
@@ -1727,9 +1741,14 @@ async function startDashboard() {
                 console.error('Error during authenticated setup:', error);
                 showError("Error loading your data. Please try refreshing.");
                 // Redirect to login only if session creation is absolutely critical and failed
-                 if (error.message.includes('Failed to create session')) {
-                     window.location.href = '/login';
-                 }
+                if (error.message.includes('Failed to create session')) {
+                    window.location.href = '/login';
+                }
+                
+                // Hide loading overlay if there's an error
+                if (dashboardLoadingOverlay) {
+                    dashboardLoadingOverlay.classList.add('hidden');
+                }
             }
         } else {
             // User is signed out, redirect to login
