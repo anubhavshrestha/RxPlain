@@ -335,12 +335,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if(docCountElement) docCountElement.textContent = `${docCount} document${docCount !== 1 ? 's' : ''}`;
                 else console.warn('[Reports.js] .report-documents element not found in template.');
                 
-                // Medication count
-                const medCount = Array.isArray(report.medications) ? report.medications.length : 0;
-                 const medCountElement = card.querySelector('.report-medications');
-                 if(medCountElement) medCountElement.textContent = `${medCount} medication${medCount !== 1 ? 's' : ''}`;
-                 else console.warn('[Reports.js] .report-medications element not found in template.');
-                
                 // Add document badges
                 const docBadgesContainer = card.querySelector('.document-badges');
                 if (docBadgesContainer) {
