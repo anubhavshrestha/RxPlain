@@ -21,14 +21,14 @@
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "express-handlebars": "^8.0.1",
-    "firebase": "^10.14.1",
-    "firebase-admin": "^11.11.1",
+    "firebase": "^11.7.1",
+    "firebase-admin": "^13.3.0",
     "groq-sdk": "^0.19.0",
     "marked": "^15.0.8",
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.2",
     "pdf-parse": "^1.1.1",
-    "pdfjs-dist": "^3.11.174",
+    "pdfjs-dist": "^5.2.133",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
