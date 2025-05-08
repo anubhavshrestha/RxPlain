@@ -28,14 +28,10 @@ npm install
 
 ### 2 · Set up environment variables
 
-Create a `.env` file in the project root and add every key required by the code (we included the keys in our report)
+Create a `.env` file in the project root and add every key required by the code (we included the additional keys in our report)
 
 ```dotenv
 PORT=3000           
-FIREBASE_API_KEY=...
-FIREBASE_PROJECT_ID=...
-GEMINI_API_KEY=...
-# ...other keys as needed
 ```
 
 ### 3 · Build Tailwind CSS (only if you edited styles)
