@@ -196,4 +196,30 @@ export class Document {
       return false;
     }
   }
+  
+  /**
+   * Find most recent documents for a patient with a limit
+   * @param {string} patientId - The patient's ID
+   * @param {number} limit - Maximum number of documents to return
+   * @returns {Promise<Array>} - Array of Document objects
+   */
+  static async findLatestForPatient(patientId, limit = 5) {
+    try {
+      const snapshot = await db.collection('documents')
+        .where('patientId', '==', patientId)
+        .orderBy('createdAt', 'desc')
+        .limit(limit)
+        .get();
+      
+      const documents = [];
+      snapshot.forEach(doc => {
+        documents.push(new Document(doc.id, doc.data()));
+      });
+      
+      return documents;
+    } catch (error) {
+      console.error('Error finding latest documents for patient:', error);
+      return [];
+    }
+  }
 } 

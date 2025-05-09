@@ -115,4 +115,27 @@ export class Doctor extends User {
       return [];
     }
   }
+  
+  /**
+   * Update doctor profile with new data
+   * @param {Object} data - Updated doctor data
+   * @returns {Promise<Doctor>} - The updated doctor instance
+   */
+  async updateProfile(data) {
+    try {
+      // Update base properties
+      await super.updateProfile(data);
+      
+      // Update doctor-specific properties
+      if (data.specialization) this.specialization = data.specialization;
+      if (data.licenseNumber) this.licenseNumber = data.licenseNumber;
+      
+      // Save changes
+      await this.save();
+      return this;
+    } catch (error) {
+      console.error('Error updating doctor profile:', error);
+      throw error;
+    }
+  }
 } 

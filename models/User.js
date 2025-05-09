@@ -153,4 +153,25 @@ export class User {
   isConnectedTo(userId) {
     return this.connections.includes(userId);
   }
+
+  /**
+   * Update user profile with new data
+   * @param {Object} data - Updated user data
+   * @returns {Promise<User>} - The updated user instance
+   */
+  async updateProfile(data) {
+    try {
+      // Update basic properties
+      if (data.displayName) this.displayName = data.displayName;
+      if (data.username) this.username = data.username;
+      if (data.phone) this.phone = data.phone;
+      
+      // Save changes
+      await this.save();
+      return this;
+    } catch (error) {
+      console.error('Error updating user profile:', error);
+      throw error;
+    }
+  }
 } 

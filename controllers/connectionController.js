@@ -1,5 +1,5 @@
 import { db } from '../config/firebase-admin.js';
-import { User } from '../models/index.js';
+import { User, ConnectionRequest } from '../models/index.js';
 
 /**
  * Send a connection request from one user to another
@@ -47,23 +47,24 @@ export const sendConnectionRequest = async (req, res) => {
       return res.status(400).json({ error: 'Connection request already sent' });
     }
     
-    // Create connection request
+    // Create connection request using our ConnectionRequest class
     const requestData = {
       senderId,
       senderName: sender.displayName,
       senderRole: sender.role,
       receiverId: targetUserId,
       receiverName: targetUser.displayName,
-      receiverRole: targetUser.role,
-      status: 'pending',
-      createdAt: new Date()
+      receiverRole: targetUser.role
     };
     
-    const requestRef = await db.collection('connectionRequests').add(requestData);
+    const request = await ConnectionRequest.create(requestData);
+    if (!request) {
+      return res.status(500).json({ error: 'Failed to create connection request' });
+    }
     
     res.status(201).json({ 
       success: true, 
-      requestId: requestRef.id
+      requestId: request.id
     });
   } catch (error) {
     console.error('Error sending connection request:', error);
@@ -79,13 +80,12 @@ export const acceptConnectionRequest = async (req, res) => {
     const userId = req.user.uid;
     const { requestId } = req.params;
     
-    // Get the connection request
-    const requestDoc = await db.collection('connectionRequests').doc(requestId).get();
-    if (!requestDoc.exists) {
+    // Get the connection request using our ConnectionRequest class
+    const request = await ConnectionRequest.findById(requestId);
+    
+    if (!request) {
       return res.status(404).json({ error: 'Connection request not found' });
     }
-    
-    const request = requestDoc.data();
     
     // Verify the user is the receiver of the request
     if (request.receiverId !== userId) {
@@ -105,15 +105,12 @@ export const acceptConnectionRequest = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Add connections using OOP methods
+    // Accept the request using our ConnectionRequest class
+    await request.accept();
+    
+    // Add connections using our User class methods
     await sender.addConnection(userId);
     await receiver.addConnection(request.senderId);
-    
-    // Update the request status
-    await requestDoc.ref.update({
-      status: 'accepted',
-      updatedAt: new Date()
-    });
     
     res.json({ success: true });
   } catch (error) {
@@ -130,13 +127,12 @@ export const rejectConnectionRequest = async (req, res) => {
     const userId = req.user.uid;
     const { requestId } = req.params;
     
-    // Get the connection request
-    const requestDoc = await db.collection('connectionRequests').doc(requestId).get();
-    if (!requestDoc.exists) {
+    // Get the connection request using our ConnectionRequest class
+    const request = await ConnectionRequest.findById(requestId);
+    
+    if (!request) {
       return res.status(404).json({ error: 'Connection request not found' });
     }
-    
-    const request = requestDoc.data();
     
     // Verify the user is the receiver of the request
     if (request.receiverId !== userId) {
@@ -148,11 +144,8 @@ export const rejectConnectionRequest = async (req, res) => {
       return res.status(400).json({ error: `Request is already ${request.status}` });
     }
     
-    // Update the request status
-    await requestDoc.ref.update({
-      status: 'rejected',
-      updatedAt: new Date()
-    });
+    // Reject the request using our ConnectionRequest class
+    await request.reject();
     
     res.json({ success: true });
   } catch (error) {
@@ -224,41 +217,25 @@ export const getPendingRequests = async (req, res) => {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    // Get pending incoming requests
-    const incomingRequestsSnapshot = await db.collection('connectionRequests')
-      .where('receiverId', '==', userId)
-      .where('status', '==', 'pending')
-      .get();
-      
-    const incomingRequests = [];
-    incomingRequestsSnapshot.forEach(doc => {
-      const request = doc.data();
-      incomingRequests.push({
-        id: doc.id,
-        senderId: request.senderId,
-        senderName: request.senderName,
-        senderRole: request.senderRole,
-        createdAt: request.createdAt instanceof Date ? request.createdAt.toISOString() : request.createdAt
-      });
-    });
+    // Get pending requests using our ConnectionRequest class
+    const pendingRequests = await ConnectionRequest.findPendingForUser(userId);
     
-    // Get pending outgoing requests
-    const outgoingRequestsSnapshot = await db.collection('connectionRequests')
-      .where('senderId', '==', userId)
-      .where('status', '==', 'pending')
-      .get();
-      
-    const outgoingRequests = [];
-    outgoingRequestsSnapshot.forEach(doc => {
-      const request = doc.data();
-      outgoingRequests.push({
-        id: doc.id,
-        receiverId: request.receiverId,
-        receiverName: request.receiverName,
-        receiverRole: request.receiverRole,
-        createdAt: request.createdAt instanceof Date ? request.createdAt.toISOString() : request.createdAt
-      });
-    });
+    // Format the response
+    const incomingRequests = pendingRequests.incoming.map(request => ({
+      id: request.id,
+      senderId: request.senderId,
+      senderName: request.senderName,
+      senderRole: request.senderRole,
+      createdAt: request.createdAt instanceof Date ? request.createdAt.toISOString() : request.createdAt
+    }));
+    
+    const outgoingRequests = pendingRequests.outgoing.map(request => ({
+      id: request.id,
+      receiverId: request.receiverId,
+      receiverName: request.receiverName,
+      receiverRole: request.receiverRole,
+      createdAt: request.createdAt instanceof Date ? request.createdAt.toISOString() : request.createdAt
+    }));
     
     res.json({
       incomingRequests,

@@ -126,4 +126,28 @@ export class Patient extends User {
       return false;
     }
   }
+  
+  /**
+   * Update patient profile with new data
+   * @param {Object} data - Updated patient data
+   * @returns {Promise<Patient>} - The updated patient instance
+   */
+  async updateProfile(data) {
+    try {
+      // Update base properties
+      await super.updateProfile(data);
+      
+      // Update patient-specific properties
+      if (data.dateOfBirth) this.dateOfBirth = toJsDate(data.dateOfBirth);
+      if (data.allergies) this.allergies = data.allergies;
+      if (data.medicalConditions) this.medicalConditions = data.medicalConditions;
+      
+      // Save changes
+      await this.save();
+      return this;
+    } catch (error) {
+      console.error('Error updating patient profile:', error);
+      throw error;
+    }
+  }
 } 
