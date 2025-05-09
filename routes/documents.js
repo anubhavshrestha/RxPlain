@@ -5,15 +5,13 @@ import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import admin from 'firebase-admin';
-import { DocumentProcessor } from '../services/documentProcessor.js';
-import { GeminiDocumentProcessor } from '../services/geminiDocumentProcessor.js';
+import { DocumentProcessorFactory } from '../models/DocumentProcessorFactory.js';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { readFile, unlink } from 'fs/promises';
 
 const router = express.Router();
-const processor = new DocumentProcessor();
-const geminiProcessor = new GeminiDocumentProcessor();
+const documentProcessor = DocumentProcessorFactory.createProcessor();
 
 // Configure multer for memory storage
 const upload = multer({
@@ -156,7 +154,20 @@ router.get('/user-documents', isAuthenticated, async (req, res) => {
           isSelected: doc.isSelected || false,
           documentType: doc.documentType || 'UNCLASSIFIED',
           createdAt: doc.createdAt,
-          updatedAt: doc.updatedAt
+          updatedAt: doc.updatedAt,
+          // Add endorsement and flag information
+          endorsedBy: doc.endorsedBy ? {
+            doctorId: doc.endorsedBy.doctorId,
+            displayName: doc.endorsedBy.displayName,
+            timestamp: doc.endorsedBy.timestamp,
+            note: doc.endorsedBy.note
+          } : null,
+          flaggedBy: doc.flaggedBy ? {
+            doctorId: doc.flaggedBy.doctorId,
+            displayName: doc.flaggedBy.displayName,
+            timestamp: doc.flaggedBy.timestamp,
+            note: doc.flaggedBy.note
+          } : null
         });
       }
     }
@@ -301,8 +312,8 @@ router.post('/process', isAuthenticated, upload.single('file'), async (req, res)
             });
         }
 
-        // Process the document
-        const result = await processor.processDocument(req.file);
+        // Process the document using our processor from the factory
+        const result = await documentProcessor.processDocument(req.file);
         
         if (!result.success) {
             return res.status(500).json({
@@ -336,7 +347,8 @@ router.post('/test-extract', upload.single('file'), async (req, res) => {
             });
         }
 
-        const processor = new DocumentProcessor();
+        // Instead of calling the factory incorrectly as a method:
+        const processor = DocumentProcessorFactory.createProcessor();
         
         // Only extract text without sending to Groq
         const text = await processor.extractText(req.file);
@@ -370,6 +382,9 @@ router.post('/process-gemini', isAuthenticated, upload.single('file'), async (re
             });
         }
 
+        // Use our factory to get the processor
+        const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
+        
         // Process the document with Gemini
         const result = await geminiProcessor.processDocument(req.file);
         
@@ -659,24 +674,56 @@ router.get('/:documentId', isAuthenticated, async (req, res) => {
     }
     
     const documentData = docSnapshot.data();
+    const documentOwnerId = documentData.userId;
     
     // Check if the document belongs to the user
-    if (documentData.userId !== userId) {
-      return res.status(403).json({ error: 'Unauthorized' });
+    let isDoctor = false;
+    if (documentOwnerId !== userId) {
+      // If not the owner, check if the current user is a doctor connected to the document owner
+      const userDoc = await db.collection('users').doc(userId).get();
+      const userData = userDoc.data();
+      if (!userDoc.exists || userData.role !== 'doctor') {
+        // Not a doctor - unauthorized
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
+      isDoctor = true;
+      // Check if doctor is connected to this patient
+      const doctorConnections = userData.connections || [];
+      if (!doctorConnections.includes(documentOwnerId)) {
+        // Doctor is not connected to the patient - unauthorized
+        return res.status(403).json({ error: 'Not authorized to access this patient\'s document' });
+      }
+      console.log(`Doctor ${userId} authorized to view patient ${documentOwnerId} document ${documentId}`);
     }
     
     // Convert Firestore timestamps to ISO strings for JSON serialization
-    if (documentData.createdAt) {
-      documentData.createdAt = documentData.createdAt.toDate().toISOString();
-    }
-    if (documentData.updatedAt) {
-      documentData.updatedAt = documentData.updatedAt.toDate().toISOString();
-    }
-    if (documentData.processedAt) {
-      documentData.processedAt = documentData.processedAt.toDate().toISOString();
-    }
+    const convertDate = (d) => d && d.toDate ? d.toDate().toISOString() : d;
+    if (documentData.createdAt) documentData.createdAt = convertDate(documentData.createdAt);
+    if (documentData.updatedAt) documentData.updatedAt = convertDate(documentData.updatedAt);
+    if (documentData.processedAt) documentData.processedAt = convertDate(documentData.processedAt);
+    if (documentData.endorsedBy && documentData.endorsedBy.timestamp) documentData.endorsedBy.timestamp = convertDate(documentData.endorsedBy.timestamp);
+    if (documentData.flaggedBy && documentData.flaggedBy.timestamp) documentData.flaggedBy.timestamp = convertDate(documentData.flaggedBy.timestamp);
     
-    return res.status(200).json(documentData);
+    // Always return all relevant fields for the unified view
+    return res.status(200).json({
+      id: documentId,
+      userId: documentOwnerId,
+      fileName: documentData.fileName,
+      fileUrl: documentData.fileUrl || documentData.url,
+      fileType: documentData.fileType || documentData.documentType,
+      createdAt: documentData.createdAt,
+      updatedAt: documentData.updatedAt,
+      processedAt: documentData.processedAt,
+      isProcessed: documentData.isProcessed || false,
+      isProcessing: documentData.isProcessing || false,
+      simplifiedText: documentData.simplifiedText || documentData.simplified || '',
+      medications: documentData.medications || [],
+      endorsedBy: documentData.endorsedBy || null,
+      flaggedBy: documentData.flaggedBy || null,
+      originalText: documentData.originalText || '',
+      isDoctor: isDoctor,
+      // Add any other fields needed for the view
+    });
   } catch (error) {
     console.error('Error fetching document:', error);
     return res.status(500).json({ error: 'Server error' });
@@ -748,7 +795,8 @@ router.post('/simplify/:documentId', isAuthenticated, async (req, res) => {
     
     console.log(`Starting Gemini processing for document: ${documentId}`);
     
-    // Process with Gemini
+    // Process with Gemini using our factory
+    const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
     const processResult = await geminiProcessor.processDocument(fileObj);
     
     // Clean up the temporary file
@@ -1030,11 +1078,8 @@ router.post('/medications/check-interactions', isAuthenticated, async (req, res)
             If no interactions exist, still provide the complete structure with appropriate content indicating no interactions.
         `;
 
-        // Use the existing geminiProcessor instance
-        if (!geminiProcessor) {
-            console.error('Gemini processor instance not available in interaction check route');
-            return res.status(500).json({ success: false, error: 'Server configuration error.' });
-        }
+        // Use our DocumentProcessorFactory instead of existing geminiProcessor
+        const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
         
         // Call Gemini
         const model = geminiProcessor.model;
@@ -1146,6 +1191,7 @@ router.post('/medications/generate-schedule', isAuthenticated, async (req, res) 
             `;
 
             // Call Gemini for interaction check
+            const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
             const model = geminiProcessor.model;
             const interactionResult = await model.generateContent(interactionCheckPrompt);
             const interactionText = interactionResult.response.text();
@@ -1242,6 +1288,7 @@ router.post('/medications/generate-schedule', isAuthenticated, async (req, res) 
         `;
 
         // Call Gemini for schedule generation
+        const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
         const model = geminiProcessor.model;
         const scheduleResult = await model.generateContent(schedulePrompt);
         const scheduleText = scheduleResult.response.text();
@@ -1520,7 +1567,9 @@ router.post('/combined-report', isAuthenticated, async (req, res) => {
     let combinedReport;
     try {
       // Call Gemini
-      const result = await geminiProcessor.model.generateContent(reportPrompt);
+      const geminiProcessor = DocumentProcessorFactory.createProcessor(DocumentProcessorFactory.PROCESSOR_TYPES.GEMINI);
+      const model = geminiProcessor.model;
+      const result = await model.generateContent(reportPrompt);
       combinedReport = result.response.text();
     } catch (error) {
       console.error('Error calling Gemini API for combined report:', error);
@@ -1940,6 +1989,189 @@ router.post('/add-medication', isAuthenticated, async (req, res) => {
       success: false, 
       error: 'Server error adding medication' 
     });
+  }
+});
+
+// Get documents for a specific patient (for doctors)
+router.get('/:patientId/patient-documents', isAuthenticated, async (req, res) => {
+  try {
+    const doctorId = req.user.uid;
+    const patientId = req.params.patientId;
+    
+    console.log(`Retrieving documents for patient ${patientId} by doctor ${doctorId}`);
+    
+    // Check if doctor exists
+    const doctorDoc = await db.collection('users').doc(doctorId).get();
+    if (!doctorDoc.exists) {
+      return res.status(404).json({ error: 'Doctor not found' });
+    }
+    
+    const doctorData = doctorDoc.data();
+    
+    // Verify the user is a doctor
+    if (doctorData.role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can access patient documents' });
+    }
+    
+    // Check if doctor is connected to this patient
+    const doctorConnections = doctorData.connections || [];
+    if (!doctorConnections.includes(patientId)) {
+      return res.status(403).json({ error: 'Not authorized to view documents for this patient' });
+    }
+    
+    // Get user's document IDs
+    const userDoc = await db.collection('users').doc(patientId).get();
+    
+    if (!userDoc.exists) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+    
+    const userData = userDoc.data();
+    const documentIds = userData.documents || [];
+    
+    console.log(`Found ${documentIds.length} document IDs for patient ${patientId}`);
+    
+    if (documentIds.length === 0) {
+      return res.status(200).json([]);
+    }
+    
+    // Get document details
+    const documents = [];
+    for (const docId of documentIds) {
+      const docSnapshot = await db.collection('documents').doc(docId).get();
+      if (docSnapshot.exists) {
+        const doc = docSnapshot.data();
+        
+        // Convert timestamps to ISO strings
+        const createdAt = doc.createdAt ? doc.createdAt.toDate() : new Date();
+        const uploadedAt = doc.uploadedAt || doc.createdAt;
+        
+        documents.push({
+          id: doc.id,
+          originalName: doc.fileName || 'Unnamed Document',
+          type: doc.fileType || doc.documentType || 'Unknown',
+          uploadedAt: uploadedAt ? uploadedAt.toDate() : createdAt,
+          url: doc.fileUrl || doc.url,
+          thumbnailUrl: doc.thumbnailUrl
+        });
+      }
+    }
+    
+    console.log(`Returning ${documents.length} documents for patient ${patientId}`);
+    
+    // Sort documents by date (newest first)
+    documents.sort((a, b) => b.uploadedAt - a.uploadedAt);
+    
+    res.json(documents);
+  } catch (error) {
+    console.error('Error fetching patient documents:', error);
+    res.status(500).json({ error: 'Error fetching patient documents' });
+  }
+});
+
+// Endpoint to endorse a document
+router.post('/:documentId/endorse', isAuthenticated, async (req, res) => {
+  try {
+    const documentId = req.params.documentId;
+    const doctorId = req.user.uid;
+    const { note } = req.body;
+    
+    // Check if note is provided
+    if (!note || note.trim() === '') {
+      return res.status(400).json({ error: 'A note is required for endorsement' });
+    }
+    
+    // Verify doctor role
+    const doctorDoc = await db.collection('users').doc(doctorId).get();
+    if (!doctorDoc.exists || doctorDoc.data().role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can endorse documents' });
+    }
+    
+    // Get the document
+    const docRef = db.collection('documents').doc(documentId);
+    const docSnapshot = await docRef.get();
+    
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    
+    const documentData = docSnapshot.data();
+    
+    // Check authorization - doctor must be connected to document owner
+    const doctorData = doctorDoc.data();
+    const doctorConnections = doctorData.connections || [];
+    
+    if (!doctorConnections.includes(documentData.userId)) {
+      return res.status(403).json({ error: 'Not authorized to endorse this document' });
+    }
+    
+    // Add endorsement data
+    await docRef.update({
+      endorsedBy: {
+        doctorId: doctorId,
+        displayName: doctorData.displayName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        note: note
+      }
+    });
+    
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error endorsing document:', error);
+    return res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// Endpoint to flag a document
+router.post('/:documentId/flag', isAuthenticated, async (req, res) => {
+  try {
+    const documentId = req.params.documentId;
+    const doctorId = req.user.uid;
+    const { note } = req.body;
+    
+    // Check if note is provided
+    if (!note || note.trim() === '') {
+      return res.status(400).json({ error: 'A note is required for flagging' });
+    }
+    
+    // Verify doctor role
+    const doctorDoc = await db.collection('users').doc(doctorId).get();
+    if (!doctorDoc.exists || doctorDoc.data().role !== 'doctor') {
+      return res.status(403).json({ error: 'Only doctors can flag documents' });
+    }
+    
+    // Get the document
+    const docRef = db.collection('documents').doc(documentId);
+    const docSnapshot = await docRef.get();
+    
+    if (!docSnapshot.exists) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    
+    const documentData = docSnapshot.data();
+    
+    // Check authorization - doctor must be connected to document owner
+    const doctorData = doctorDoc.data();
+    const doctorConnections = doctorData.connections || [];
+    
+    if (!doctorConnections.includes(documentData.userId)) {
+      return res.status(403).json({ error: 'Not authorized to flag this document' });
+    }
+    
+    // Add flag data
+    await docRef.update({
+      flaggedBy: {
+        doctorId: doctorId,
+        displayName: doctorData.displayName,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        note: note
+      }
+    });
+    
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error flagging document:', error);
+    return res.status(500).json({ error: 'Server error' });
   }
 });
 

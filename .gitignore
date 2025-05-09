@@ -3,4 +3,3 @@ node_modules/
 .DS_Store
 config/firebase-admin.js
 config/firebase-config.jscoverage/
-coverage/
