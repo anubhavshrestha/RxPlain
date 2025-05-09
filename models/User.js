@@ -13,12 +13,17 @@ function toJsDate(date) {
     try {
       return new Date(date);
     } catch (e) {
-      console.warn('Unable to parse date:', date);
+      utils.logWarning('Unable to parse date:', date);
       return new Date();
     }
   }
   return new Date();
 }
+
+// For testing purposes - allows us to inject a mock
+export const utils = {
+  logWarning: (message, value) => console.warn(message, value)
+};
 
 /**
  * Base User class representing common functionality for all user types
