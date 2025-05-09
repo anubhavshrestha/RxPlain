@@ -13,6 +13,7 @@ import { marked } from 'marked';
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
 import documentRoutes from './routes/documents.js';
+import documentOopRoutes from './routes/documents-oop.js';
 import userRoutes from './routes/users.js';
 import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
@@ -108,6 +109,9 @@ app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/documents', documentRoutes);
 console.log('[App Setup] Mounted documentRoutes under /api/documents'); // Log mounting
+// New OOP routes for documents
+app.use('/api/v2/documents', documentOopRoutes);
+console.log('[App Setup] Mounted documentOopRoutes under /api/v2/documents'); // Log mounting
 app.use('/api/users', userRoutes);
 
 // Public Routes

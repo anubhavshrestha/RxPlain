@@ -1,41 +1,27 @@
 import { db } from '../config/firebase-admin.js';
+import { Doctor, Patient, User } from '../models/index.js';
 
 // Search doctors
 export const searchDoctors = async (req, res) => {
   try {
     const { query, specialization } = req.query;
-    let doctorsRef = db.collection('users').where('role', '==', 'doctor');
     
-    // Apply filters if provided
-    if (specialization) {
-      doctorsRef = doctorsRef.where('specialization', '==', specialization);
-    }
-    
-    // Get doctors
-    const snapshot = await doctorsRef.get();
-    const doctors = [];
-    
-    snapshot.forEach(doc => {
-      const doctor = doc.data();
-      // Only include necessary fields
-      doctors.push({
-        id: doc.id,
-        username: doctor.username,
-        displayName: doctor.displayName,
-        specialization: doctor.specialization,
-        licenseNumber: doctor.licenseNumber
-      });
+    // Use the Doctor class to search for doctors
+    const doctors = await Doctor.search({
+      query,
+      specialization
     });
     
-    // Filter by username or display name if query is provided
-    const filteredDoctors = query 
-      ? doctors.filter(doctor => 
-          doctor.username.toLowerCase().includes(query.toLowerCase()) ||
-          doctor.displayName.toLowerCase().includes(query.toLowerCase())
-        )
-      : doctors;
+    // Map to the response format expected by the client
+    const doctorResults = doctors.map(doctor => ({
+      id: doctor.id,
+      username: doctor.username,
+      displayName: doctor.displayName,
+      specialization: doctor.specialization,
+      licenseNumber: doctor.licenseNumber
+    }));
     
-    res.json({ doctors: filteredDoctors });
+    res.json({ doctors: doctorResults });
   } catch (error) {
     console.error('Error searching doctors:', error);
     res.status(500).json({ error: 'Error searching doctors' });
@@ -45,21 +31,18 @@ export const searchDoctors = async (req, res) => {
 // Get all doctors
 export const getAllDoctors = async (req, res) => {
   try {
-    const doctorsRef = db.collection('users').where('role', '==', 'doctor');
-    const snapshot = await doctorsRef.get();
-    const doctors = [];
+    // Use the Doctor class to get all doctors
+    const doctors = await Doctor.findAll();
     
-    snapshot.forEach(doc => {
-      const doctor = doc.data();
-      doctors.push({
-        id: doc.id,
-        username: doctor.username,
-        displayName: doctor.displayName,
-        specialization: doctor.specialization || 'Not specified'
-      });
-    });
+    // Map to the response format expected by the client
+    const doctorResults = doctors.map(doctor => ({
+      id: doctor.id,
+      username: doctor.username,
+      displayName: doctor.displayName,
+      specialization: doctor.specialization || 'Not specified'
+    }));
     
-    res.json({ doctors });
+    res.json({ doctors: doctorResults });
   } catch (error) {
     console.error('Error fetching doctors:', error);
     res.status(500).json({ error: 'Error fetching doctors' });
@@ -71,12 +54,10 @@ export const checkUsernameAvailability = async (req, res) => {
   try {
     const { username } = req.params;
     
-    // Check if username exists
-    const snapshot = await db.collection('users')
-      .where('username', '==', username)
-      .get();
+    // Use User class method instead of direct Firestore query
+    const user = await User.findByUsername(username);
     
-    res.json({ available: snapshot.empty });
+    res.json({ available: !user });
   } catch (error) {
     console.error('Error checking username availability:', error);
     res.status(500).json({ error: 'Error checking username availability' });
@@ -87,20 +68,21 @@ export const checkUsernameAvailability = async (req, res) => {
 export const getDoctorProfile = async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const doctorDoc = await db.collection('users').doc(doctorId).get();
     
-    if (!doctorDoc.exists) {
+    // Use the User class to find by ID which will return the correct type
+    const doctor = await User.findById(doctorId);
+    
+    if (!doctor) {
       return res.status(404).json({ error: 'Doctor not found' });
     }
     
-    const doctor = doctorDoc.data();
     if (doctor.role !== 'doctor') {
       return res.status(400).json({ error: 'User is not a doctor' });
     }
     
-    // Only return necessary fields
+    // Return the doctor object with only necessary fields
     res.json({
-      id: doctorId,
+      id: doctor.id,
       username: doctor.username,
       displayName: doctor.displayName,
       specialization: doctor.specialization,
@@ -116,23 +98,24 @@ export const getDoctorProfile = async (req, res) => {
 export const getPatientProfile = async (req, res) => {
   try {
     const { patientId } = req.params;
-    const patientDoc = await db.collection('users').doc(patientId).get();
     
-    if (!patientDoc.exists) {
+    // Use the User class to find by ID which will return the correct type
+    const patient = await User.findById(patientId);
+    
+    if (!patient) {
       return res.status(404).json({ error: 'Patient not found' });
     }
     
-    const patient = patientDoc.data();
     if (patient.role !== 'patient') {
       return res.status(400).json({ error: 'User is not a patient' });
     }
     
-    // Only return necessary fields
+    // Return the patient object with only necessary fields
     res.json({
-      id: patientId,
+      id: patient.id,
       username: patient.username,
       displayName: patient.displayName,
-      linkedDoctors: patient.linkedDoctors || []
+      connections: patient.connections || []
     });
   } catch (error) {
     console.error('Error getting patient profile:', error);
