@@ -1,5 +1,6 @@
 import { auth, db } from '../config/firebase-admin.js';
 import { firebaseConfig } from '../config/firebase-config.js';
+import { User, Doctor, Patient } from '../models/index.js';
 
 // Session duration (2 weeks)
 const SESSION_EXPIRES_IN = 60 * 60 * 24 * 14 * 1000;
@@ -76,10 +77,10 @@ export const verifySession = async (req, res) => {
     // Verify the session cookie
     const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
     
-    // Check if user has a profile in Firestore
-    const userDoc = await db.collection('users').doc(decodedClaims.uid).get();
+    // Check if user has a profile using our User class
+    const user = await User.findById(decodedClaims.uid);
     
-    if (!userDoc.exists) {
+    if (!user) {
       // User is authenticated but doesn't have a profile
       res.clearCookie('session');
       return res.status(401).json({ error: 'User profile not found' });
@@ -88,8 +89,9 @@ export const verifySession = async (req, res) => {
     // Session is valid and user has a profile
     return res.status(200).json({ 
       success: true, 
-      uid: decodedClaims.uid,
-      displayName: userDoc.data().displayName || null
+      uid: user.id,
+      displayName: user.displayName || null,
+      role: user.role
     });
   } catch (error) {
     console.error('Session verification error:', error);
@@ -113,27 +115,31 @@ export const createUserProfile = async (req, res) => {
       return res.status(400).json({ error: 'User ID and email are required' });
     }
     
-    // Create user data
+    // Create user data object for initialization
     const userData = {
-      uid,
       email,
       displayName: displayName || email.split('@')[0], // Default to email prefix if no name
       username: username || email.split('@')[0],
       role: role || 'patient',
-      createdAt: new Date(),
-      updatedAt: new Date()
+      createdAt: new Date()
     };
     
-    // Add doctor-specific fields if role is doctor
-    if (role === 'doctor' && specialization && licenseNumber) {
-      userData.specialization = specialization;
-      userData.licenseNumber = licenseNumber;
+    // Create the appropriate user type based on role
+    let user;
+    if (role === 'doctor') {
+      user = new Doctor(uid, {
+        ...userData,
+        specialization: specialization || '',
+        licenseNumber: licenseNumber || ''
+      });
+    } else {
+      user = new Patient(uid, userData);
     }
     
-    // Save to Firestore
-    await db.collection('users').doc(uid).set(userData);
+    // Save to Firestore using our OOP model
+    await user.save();
     
-    res.status(201).json({ success: true, user: userData });
+    res.status(201).json({ success: true, user: user.toFirestore() });
   } catch (error) {
     console.error('User profile creation error:', error);
     res.status(500).json({ error: 'Failed to create user profile' });

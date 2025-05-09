@@ -2,6 +2,26 @@ import { User } from './User.js';
 import { db } from '../config/firebase-admin.js';
 
 /**
+ * Safely converts different date formats
+ * @param {*} date - Date value to convert
+ * @returns {Date|null} - JavaScript Date object or null
+ */
+function toJsDate(date) {
+  if (!date) return null;
+  if (date instanceof Date) return date;
+  if (date.toDate) return date.toDate(); // Firestore timestamp
+  if (typeof date === 'string' || typeof date === 'number') {
+    try {
+      return new Date(date);
+    } catch (e) {
+      console.warn('Unable to parse date:', date);
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Patient class representing a patient user in the system
  * @extends User
  */
@@ -9,7 +29,7 @@ export class Patient extends User {
   constructor(id, data = {}) {
     super(id, data);
     this.role = 'patient'; // Always set role to patient
-    this.dateOfBirth = data.dateOfBirth || null;
+    this.dateOfBirth = toJsDate(data.dateOfBirth);
     this.allergies = data.allergies || [];
     this.medicalConditions = data.medicalConditions || [];
   }

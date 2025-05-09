@@ -1,6 +1,26 @@
 import { db } from '../config/firebase-admin.js';
 
 /**
+ * Safely converts different date formats
+ * @param {*} date - Date value to convert
+ * @returns {Date} - JavaScript Date object
+ */
+function toJsDate(date) {
+  if (!date) return new Date();
+  if (date instanceof Date) return date;
+  if (date.toDate) return date.toDate(); // Firestore timestamp
+  if (typeof date === 'string' || typeof date === 'number') {
+    try {
+      return new Date(date);
+    } catch (e) {
+      console.warn('Unable to parse date:', date);
+      return new Date();
+    }
+  }
+  return new Date();
+}
+
+/**
  * Base User class representing common functionality for all user types
  */
 export class User {
@@ -10,7 +30,8 @@ export class User {
     this.displayName = data.displayName || '';
     this.email = data.email || '';
     this.role = data.role || '';
-    this.createdAt = data.createdAt || new Date();
+    this.phone = data.phone || '';
+    this.createdAt = toJsDate(data.createdAt); // Ensure it's a JavaScript Date object
     this.connections = data.connections || [];
   }
 

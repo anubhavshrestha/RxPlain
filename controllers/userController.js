@@ -129,23 +129,24 @@ export const updateUserProfile = async (req, res) => {
     const userId = req.user.uid;
     const { displayName, specialization, licenseNumber } = req.body;
     
-    // Get current user data
-    const userDoc = await db.collection('users').doc(userId).get();
-    const userData = userDoc.data();
+    // Get user using our User class
+    const user = await User.findById(userId);
     
-    // Prepare update data
-    const updateData = {
-      displayName: displayName || userData.displayName
-    };
-    
-    // Add role-specific fields
-    if (userData.role === 'doctor') {
-      updateData.specialization = specialization || userData.specialization;
-      updateData.licenseNumber = licenseNumber || userData.licenseNumber;
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
     }
     
-    // Update user profile
-    await db.collection('users').doc(userId).update(updateData);
+    // Update user properties
+    if (displayName) user.displayName = displayName;
+    
+    // Update role-specific fields
+    if (user.role === 'doctor') {
+      if (specialization) user.specialization = specialization;
+      if (licenseNumber) user.licenseNumber = licenseNumber;
+    }
+    
+    // Save user
+    await user.save();
     
     res.json({ success: true });
   } catch (error) {
@@ -160,28 +161,16 @@ export const sendConnectionRequest = async (req, res) => {
     const senderId = req.user.uid;
     const { targetUserId } = req.params;
     
-    // Check if sender exists
-    const senderDoc = await db.collection('users').doc(senderId).get();
-    if (!senderDoc.exists) {
+    // Get sender user
+    const sender = await User.findById(senderId);
+    if (!sender) {
       return res.status(404).json({ error: 'Sender not found' });
     }
     
-    // Check if target user exists
-    const targetUserDoc = await db.collection('users').doc(targetUserId).get();
-    if (!targetUserDoc.exists) {
+    // Get target user
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) {
       return res.status(404).json({ error: 'Target user not found' });
-    }
-    
-    const sender = senderDoc.data();
-    const targetUser = targetUserDoc.data();
-    
-    // Ensure role fields exist
-    if (!sender.role) {
-      return res.status(400).json({ error: 'Sender role is not defined' });
-    }
-    
-    if (!targetUser.role) {
-      return res.status(400).json({ error: 'Target user role is not defined' });
     }
     
     // Check roles (patient can only connect to doctor, and vice versa)
@@ -195,8 +184,7 @@ export const sendConnectionRequest = async (req, res) => {
     }
     
     // Check if already connected
-    const senderConnections = sender.connections || [];
-    if (senderConnections.includes(targetUserId)) {
+    if (sender.isConnectedTo(targetUserId)) {
       return res.status(400).json({ error: 'Already connected to this user' });
     }
     
@@ -259,6 +247,14 @@ export const acceptConnectionRequest = async (req, res) => {
       return res.status(400).json({ error: `Request is already ${request.status}` });
     }
     
+    // Get the sender and receiver users using our User class
+    const sender = await User.findById(request.senderId);
+    const receiver = await User.findById(userId);
+    
+    if (!sender || !receiver) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
     // Begin a batch write to update multiple documents
     const batch = db.batch();
     
@@ -268,29 +264,11 @@ export const acceptConnectionRequest = async (req, res) => {
       updatedAt: new Date()
     });
     
-    // Add connection to sender's connections
-    const senderRef = db.collection('users').doc(request.senderId);
-    const senderDoc = await senderRef.get();
-    const senderData = senderDoc.data();
-    const senderConnections = senderData.connections || [];
+    // Add connections using our class methods
+    await sender.addConnection(userId);
+    await receiver.addConnection(request.senderId);
     
-    if (!senderConnections.includes(userId)) {
-      senderConnections.push(userId);
-      batch.update(senderRef, { connections: senderConnections });
-    }
-    
-    // Add connection to receiver's connections
-    const receiverRef = db.collection('users').doc(userId);
-    const receiverDoc = await receiverRef.get();
-    const receiverData = receiverDoc.data();
-    const receiverConnections = receiverData.connections || [];
-    
-    if (!receiverConnections.includes(request.senderId)) {
-      receiverConnections.push(request.senderId);
-      batch.update(receiverRef, { connections: receiverConnections });
-    }
-    
-    // Commit all changes
+    // Commit the request status update
     await batch.commit();
     
     res.json({ success: true });
@@ -395,32 +373,28 @@ export const getConnections = async (req, res) => {
   try {
     const userId = req.user.uid;
     
-    // Get user data
-    const userDoc = await db.collection('users').doc(userId).get();
-    if (!userDoc.exists) {
+    // Get user using our User class
+    const user = await User.findById(userId);
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const userData = userDoc.data();
-    const connections = userData.connections || [];
-    
     // If no connections, return empty array
-    if (connections.length === 0) {
+    if (user.connections.length === 0) {
       return res.json({ connections: [] });
     }
     
     // Get connection details
     const connectionDetails = [];
-    for (const connectionId of connections) {
-      const connectionDoc = await db.collection('users').doc(connectionId).get();
-      if (connectionDoc.exists) {
-        const connection = connectionDoc.data();
+    for (const connectionId of user.connections) {
+      const connection = await User.findById(connectionId);
+      if (connection) {
         connectionDetails.push({
-          id: connectionId,
+          id: connection.id,
           username: connection.username,
           displayName: connection.displayName,
           role: connection.role,
-          specialization: connection.specialization || null
+          specialization: connection.role === 'doctor' ? connection.specialization : null
         });
       }
     }

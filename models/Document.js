@@ -1,6 +1,26 @@
 import { db } from '../config/firebase-admin.js';
 
 /**
+ * Safely converts different date formats
+ * @param {*} date - Date value to convert
+ * @returns {Date} - JavaScript Date object
+ */
+function toJsDate(date) {
+  if (!date) return new Date();
+  if (date instanceof Date) return date;
+  if (date.toDate) return date.toDate(); // Firestore timestamp
+  if (typeof date === 'string' || typeof date === 'number') {
+    try {
+      return new Date(date);
+    } catch (e) {
+      console.warn('Unable to parse date:', date);
+      return new Date();
+    }
+  }
+  return new Date();
+}
+
+/**
  * Document class representing a prescription document in the system
  */
 export class Document {
@@ -10,8 +30,8 @@ export class Document {
     this.title = data.title || '';
     this.content = data.content || '';
     this.status = data.status || 'pending';
-    this.createdAt = data.createdAt || new Date();
-    this.updatedAt = data.updatedAt || new Date();
+    this.createdAt = toJsDate(data.createdAt);
+    this.updatedAt = toJsDate(data.updatedAt);
     this.type = data.type || 'prescription';
     this.medications = data.medications || [];
     this.schedules = data.schedules || [];

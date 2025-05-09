@@ -12,8 +12,10 @@ import { marked } from 'marked';
 // Import routes
 import authRoutes from './routes/auth.js';
 import profileRoutes from './routes/profile.js';
+import profileOopRoutes from './routes/profile-oop.js';
 import documentRoutes from './routes/documents.js';
 import documentOopRoutes from './routes/documents-oop.js';
+import connectionsOopRoutes from './routes/connections-oop.js';
 import userRoutes from './routes/users.js';
 import { isAuthenticated, redirectIfAuthenticated } from './middleware/auth.js';
 
@@ -109,9 +111,15 @@ app.use('/api', authRoutes);
 app.use('/api', profileRoutes);
 app.use('/api/documents', documentRoutes);
 console.log('[App Setup] Mounted documentRoutes under /api/documents'); // Log mounting
-// New OOP routes for documents
+
+// OOP API routes
 app.use('/api/v2/documents', documentOopRoutes);
-console.log('[App Setup] Mounted documentOopRoutes under /api/v2/documents'); // Log mounting
+console.log('[App Setup] Mounted documentOopRoutes under /api/v2/documents'); 
+app.use('/api/v2/connections', connectionsOopRoutes);
+console.log('[App Setup] Mounted connectionsOopRoutes under /api/v2/connections');
+app.use('/api/v2/profile', profileOopRoutes);
+console.log('[App Setup] Mounted profileOopRoutes under /api/v2/profile');
+
 app.use('/api/users', userRoutes);
 
 // Public Routes
@@ -398,7 +406,18 @@ app.get('/documents/:documentId', isAuthenticated, async (req, res) => {
     }
     
     // Convert Firestore timestamps to ISO strings for template
-    const convertDate = (d) => d && d.toDate ? d.toDate().toISOString() : d;
+    const convertDate = (d) => {
+      if (!d) return null;
+      if (d.toDate) return d.toDate().toISOString(); // Firestore timestamp
+      if (d instanceof Date) return d.toISOString(); // JavaScript Date
+      try {
+        // Try to parse as date string
+        return new Date(d).toISOString();
+      } catch (e) {
+        console.warn('Unable to convert date:', d);
+        return null;
+      }
+    };
     if (documentData.createdAt) documentData.createdAt = convertDate(documentData.createdAt);
     if (documentData.updatedAt) documentData.updatedAt = convertDate(documentData.updatedAt);
     if (documentData.processedAt) documentData.processedAt = convertDate(documentData.processedAt);
@@ -510,12 +529,23 @@ app.get('/profile/:userId', isAuthenticated, async (req, res) => {
 
     if (!pendingRequestsSnapshot.empty) {
       const requestDoc = pendingRequestsSnapshot.docs[0];
+      const requestData = requestDoc.data();
       connectionRequest = {
         id: requestDoc.id,
-        ...requestDoc.data(),
-        createdAt: requestDoc.data().createdAt.toDate()
+        ...requestData,
+        createdAt: requestData.createdAt && requestData.createdAt.toDate ? 
+                   requestData.createdAt.toDate() : 
+                   new Date()
       };
     }
+    
+    // Safe date conversion helper
+    const safeToDate = (dateField) => {
+      if (!dateField) return new Date();
+      return dateField.toDate ? dateField.toDate() : 
+             dateField instanceof Date ? dateField : 
+             new Date(dateField);
+    };
     
     // If target user is a doctor, render doctor profile
     // Allow both patients and doctors to view doctor profiles
@@ -526,7 +556,7 @@ app.get('/profile/:userId', isAuthenticated, async (req, res) => {
         doctor: {
           id: targetUserId,
           ...targetUserData,
-          createdAt: targetUserData.createdAt.toDate()
+          createdAt: safeToDate(targetUserData.createdAt)
         },
         isConnected,
         connectionRequest
@@ -540,7 +570,7 @@ app.get('/profile/:userId', isAuthenticated, async (req, res) => {
         patient: {
           id: targetUserId,
           ...targetUserData,
-          createdAt: targetUserData.createdAt.toDate()
+          createdAt: safeToDate(targetUserData.createdAt)
         },
         isConnected,
         connectionRequest
