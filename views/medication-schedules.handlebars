@@ -1,0 +1,943 @@
+{{!-- Medication Schedules Page --}}
+<div class="bg-gray-50 min-h-screen pb-12">
+  <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="sm:flex sm:items-center mb-8">
+      <div class="sm:flex-auto">
+        <h1 class="text-2xl font-semibold text-gray-900">My Medication Schedules</h1>
+        <p class="mt-2 text-sm text-gray-700">View and manage your medication schedules.</p>
+      </div>
+      <div class="mt-4 sm:mt-0 sm:ml-16 sm:flex-none">
+        <a href="/medications" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          Create New Schedule
+        </a>
+      </div>
+    </div>
+
+    <!-- Loading indicator -->
+    <div id="loading-schedules" class="py-6 flex justify-center items-center">
+      <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      <p class="ml-2">Loading medication schedules...</p>
+    </div>
+
+    <!-- Error message container -->
+    <div id="error-container" class="bg-red-50 border-l-4 border-red-500 p-4 my-4 hidden">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="ml-3">
+          <p class="text-sm text-red-700" id="error-message">
+            Error loading medication schedules
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty state when no schedules -->
+    <div id="empty-state" class="py-12 hidden">
+      <div class="max-w-3xl mx-auto bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-12 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <h3 class="mt-4 text-lg font-medium text-gray-900">No medication schedules found</h3>
+          <p class="mt-2 text-sm text-gray-500">You haven't created any medication schedules yet.</p>
+          <div class="mt-6">
+            <button id="create-schedule-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create New Schedule
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schedules List -->
+    <div id="schedules-list" class="py-6 hidden">
+      <div class="max-w-7xl mx-auto bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-4 py-5 sm:px-6 border-b border-gray-200 flex justify-between items-center">
+          <h3 class="text-lg leading-6 font-medium text-gray-900">
+            Your Medication Schedules
+          </h3>
+          <button id="list-create-btn" class="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" class="-ml-0.5 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            New Schedule
+          </button>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Schedule Name
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Medications
+                </th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody id="schedules-tbody" class="bg-white divide-y divide-gray-200">
+              <!-- Schedule rows will be inserted here dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Details Modal -->
+<div id="schedule-detail-modal" class="fixed inset-0 overflow-y-auto hidden" aria-modal="true" role="dialog">
+  <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+      <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div class="sm:flex sm:items-start">
+          <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+            <h3 class="text-lg leading-6 font-medium text-gray-900" id="detail-title">
+              Schedule Details
+            </h3>
+            <div class="mt-4 max-h-96 overflow-y-auto" id="detail-content">
+              <!-- Content will be filled dynamically -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+        <button type="button" id="close-detail-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div id="confirm-modal" class="fixed inset-0 overflow-y-auto hidden" aria-modal="true" role="dialog">
+  <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+      <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div class="sm:flex sm:items-start">
+          <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+            <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">
+              Delete Schedule
+            </h3>
+            <div class="mt-2">
+              <p class="text-sm text-gray-500" id="confirm-message">
+                Are you sure you want to delete this schedule? This action cannot be undone.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+        <button type="button" id="confirm-delete-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">
+          Delete
+        </button>
+        <button type="button" id="cancel-delete-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JavaScript -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const loadingIndicator = document.getElementById('loading-schedules');
+    const errorContainer = document.getElementById('error-container');
+    const errorMessage = document.getElementById('error-message');
+    const emptyState = document.getElementById('empty-state');
+    const schedulesList = document.getElementById('schedules-list');
+    const schedulesTbody = document.getElementById('schedules-tbody');
+    
+    // Detail Modal Elements
+    const detailModal = document.getElementById('schedule-detail-modal');
+    const detailTitle = document.getElementById('detail-title');
+    const closeDetailBtn = document.getElementById('close-detail-btn');
+    const detailDailySchedule = document.getElementById('detail-daily-schedule');
+    const detailWeeklyAdjustmentsSection = document.getElementById('detail-weekly-adjustments-section');
+    const detailWeeklyAdjustments = document.getElementById('detail-weekly-adjustments');
+    const detailSpecialNotes = document.getElementById('detail-special-notes');
+    const detailFollowup = document.getElementById('detail-followup');
+    const deleteScheduleBtn = document.getElementById('delete-schedule-btn');
+    const printScheduleBtn = document.getElementById('print-schedule-btn');
+    
+    // Edit Modal Elements
+    const editModal = document.getElementById('edit-schedule-modal');
+    const editNameInput = document.getElementById('edit-schedule-name');
+    const editStatusActive = document.getElementById('edit-status-active');
+    const editStatusInactive = document.getElementById('edit-status-inactive');
+    const closeEditBtn = document.getElementById('close-edit-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    const saveEditBtn = document.getElementById('save-edit-btn');
+    
+    // Delete Confirmation Modal Elements
+    const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+    const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+    
+    // Store the current schedule ID
+    let currentScheduleId = null;
+    
+    // Store all schedules for reference
+    let allSchedules = [];
+    
+    // Check if Firebase is initialized before fetching schedules
+    checkFirebaseAndFetchSchedules();
+    
+    // Set up event listeners
+    closeDetailBtn.addEventListener('click', () => {
+      detailModal.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    });
+    
+    deleteScheduleBtn.addEventListener('click', () => {
+      // Show delete confirmation modal
+      deleteConfirmModal.classList.remove('hidden');
+    });
+    
+    cancelDeleteBtn.addEventListener('click', () => {
+      deleteConfirmModal.classList.add('hidden');
+    });
+    
+    confirmDeleteBtn.addEventListener('click', () => {
+      deleteSchedule(currentScheduleId);
+    });
+    
+    printScheduleBtn.addEventListener('click', () => {
+      window.print();
+    });
+    
+    // Edit modal event listeners
+    closeEditBtn.addEventListener('click', () => {
+      editModal.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    });
+    
+    cancelEditBtn.addEventListener('click', () => {
+      editModal.classList.add('hidden');
+      document.body.classList.remove('overflow-hidden');
+    });
+    
+    saveEditBtn.addEventListener('click', () => {
+      saveEditedSchedule();
+    });
+    
+    // Create schedule buttons
+    const createScheduleBtn = document.getElementById('create-schedule-btn');
+    const listCreateBtn = document.getElementById('list-create-btn');
+    
+    if (createScheduleBtn) {
+      createScheduleBtn.addEventListener('click', () => {
+        window.location.href = '/medications';
+      });
+    }
+    
+    if (listCreateBtn) {
+      listCreateBtn.addEventListener('click', () => {
+        window.location.href = '/medications';
+      });
+    }
+    
+    // Function to check if Firebase is properly initialized
+    function checkFirebaseAndFetchSchedules() {
+      console.log('Checking Firebase initialization...');
+      
+      // Show loading indicator
+      loadingIndicator.classList.remove('hidden');
+      errorContainer.classList.add('hidden');
+      emptyState.classList.add('hidden');
+      schedulesList.classList.add('hidden');
+      
+      // Set a timeout to prevent infinite loading
+      const loadingTimeout = setTimeout(() => {
+        console.log('Loading timeout reached - showing empty state');
+        loadingIndicator.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+      }, 15000); // 15 seconds timeout
+      
+      // Check if Firebase is defined
+      if (typeof firebase === 'undefined') {
+        console.log('Firebase is not defined yet, waiting...');
+        // Wait for Firebase to be loaded
+        const checkInterval = setInterval(() => {
+          if (typeof firebase !== 'undefined') {
+            console.log('Firebase now defined, checking if initialized...');
+            clearInterval(checkInterval);
+            
+            // Now check if Firebase app is initialized
+            if (firebase.apps && firebase.apps.length > 0) {
+              console.log('Firebase app is initialized, proceeding...');
+              clearTimeout(loadingTimeout);
+              fetchSchedules();
+            } else {
+              console.log('Firebase defined but not initialized, attempting to initialize...');
+              // Try to load Firebase config and initialize
+              fetch('/api/firebase-config')
+                .then(response => response.json())
+                .then(config => {
+                  console.log('Got Firebase config, initializing app...');
+                  firebase.initializeApp(config);
+                  clearTimeout(loadingTimeout);
+                  fetchSchedules();
+                })
+                .catch(error => {
+                  console.error('Error initializing Firebase:', error);
+                  clearTimeout(loadingTimeout);
+                  showError('Could not initialize Firebase: ' + error.message);
+                });
+            }
+          }
+        }, 500); // Check every 500ms
+        
+        // After 10 seconds, stop trying and show error
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          clearTimeout(loadingTimeout);
+          showError('Firebase could not be loaded. Please reload the page and try again.');
+        }, 10000);
+        
+        return;
+      }
+      
+      // Firebase is defined, check if initialized
+      try {
+        if (firebase.apps && firebase.apps.length > 0) {
+          console.log('Firebase is already initialized, proceeding...');
+          clearTimeout(loadingTimeout);
+          fetchSchedules();
+        } else {
+          console.log('Firebase is defined but not initialized, initializing...');
+          // Try to load Firebase config and initialize
+          fetch('/api/firebase-config')
+            .then(response => response.json())
+            .then(config => {
+              console.log('Got Firebase config, initializing app...');
+              firebase.initializeApp(config);
+              clearTimeout(loadingTimeout);
+              fetchSchedules();
+            })
+            .catch(error => {
+              console.error('Error initializing Firebase:', error);
+              clearTimeout(loadingTimeout);
+              showError('Could not initialize Firebase: ' + error.message);
+            });
+        }
+      } catch (error) {
+        console.error('Error checking Firebase initialization:', error);
+        clearTimeout(loadingTimeout);
+        showError('Error with Firebase: ' + error.message);
+      }
+    }
+    
+    function fetchSchedules() {
+      console.log('Attempting to fetch medication schedules...');
+      
+      // First, check if the user is authenticated via Firebase
+      try {
+        if (typeof firebase === 'undefined' || !firebase.auth) {
+          console.error('Firebase not initialized or available');
+          showError('Firebase authentication is not available. Please refresh the page or try again later.');
+          return;
+        }
+        
+        if (!firebase.auth().currentUser) {
+          console.log('User not authenticated, waiting for auth state to change');
+          // Listen for auth state changes
+          firebase.auth().onAuthStateChanged(function(user) {
+            if (user) {
+              console.log('User authenticated, fetching schedules');
+              // User is signed in, fetch schedules
+              doFetchSchedules();
+            } else {
+              console.log('User still not authenticated after auth state change');
+              // User is still not signed in, show error
+              showAuthError();
+            }
+          });
+        } else {
+          console.log('User already authenticated, fetching schedules');
+          // User is already signed in, fetch schedules
+          doFetchSchedules();
+        }
+      } catch (error) {
+        console.error('Error in authentication check:', error);
+        showError('Authentication error: ' + error.message);
+      }
+    }
+    
+    function showAuthError() {
+      loadingIndicator.classList.add('hidden');
+      errorContainer.classList.remove('hidden');
+      errorMessage.innerHTML = 'You need to be logged in to view your medication schedules. <a href="/login" class="text-red-800 underline">Click here to log in</a>.';
+    }
+    
+    function showError(message) {
+      loadingIndicator.style.display = 'none';
+      errorContainer.style.display = 'block';
+      errorMessage.textContent = message;
+      
+      // If this is an authentication error, provide a link to login
+      if (message.includes('Authentication') || message.includes('log in')) {
+        errorMessage.innerHTML = `You need to be logged in to view your medication schedules. <a href="/login" class="text-red-800 underline">Click here to log in</a>.`;
+      }
+    }
+    
+    function doFetchSchedules() {
+      console.log('Starting to fetch schedules...');
+      
+      try {
+        // First get an ID token from Firebase
+        firebase.auth().currentUser.getIdToken(true)
+          .then(idToken => {
+            console.log('Got ID token, length:', idToken ? idToken.length : 0);
+            // Now make the API call with the token
+            return fetch('/api/documents/med-schedules', {
+              headers: {
+                'Authorization': `Bearer ${idToken}`
+              }
+            });
+          })
+          .then(response => {
+            console.log('Schedule API response status:', response.status);
+            if (!response.ok) {
+              const statusCode = response.status;
+              const statusText = response.statusText;
+              console.log('Error status:', statusCode);
+              console.log('Error statusText:', statusText);
+              
+              // Try to get more info from the response body if possible
+              return response.json().then(errorData => {
+                console.log('Error response body:', JSON.stringify(errorData));
+                throw new Error(`HTTP error! Status: ${statusCode}`);
+              }).catch(jsonError => {
+                // If parsing as JSON fails, just throw the original error
+                throw new Error(`HTTP error! Status: ${statusCode}`);
+              });
+            }
+            return response.json();
+          })
+          .then(data => {
+            console.log('Schedule data received:', JSON.stringify(data));
+            
+            // Hide loader
+            loadingIndicator.style.display = 'none';
+            
+            // Check for success but empty schedules list
+            if (data.success && data.schedules && data.schedules.length === 0) {
+              console.log('No schedules found, showing empty state');
+              emptyState.style.display = 'block';
+              schedulesList.style.display = 'none';
+              return;
+            }
+            
+            // Check for success with schedules
+            if (data.success && data.schedules && data.schedules.length > 0) {
+              console.log(`Found ${data.schedules.length} schedules, rendering list`);
+              // Render schedules
+              renderSchedules(data.schedules);
+              return;
+            }
+            
+            // If we get here, something unexpected happened
+            console.error('Invalid response format:', data);
+            showError('Received invalid data format from server');
+          })
+          .catch(error => {
+            console.error('Error fetching schedules:', error);
+            showError(error.message || 'Failed to load medication schedules');
+          })
+          .finally(() => {
+            loadingIndicator.style.display = 'none';
+          });
+      } catch (error) {
+        console.error('Error in doFetchSchedules:', error);
+        showError(error.message || 'Failed to load medication schedules');
+        loadingIndicator.style.display = 'none';
+      }
+    }
+    
+    function renderSchedules(schedules) {
+      console.log(`Rendering ${schedules.length} schedules`);
+      
+      // Show the schedules list
+      emptyState.style.display = 'none';
+      schedulesList.style.display = 'block';
+      
+      // Store schedules globally for later use
+      allSchedules = schedules;
+      
+      // Clear existing rows
+      schedulesTbody.innerHTML = '';
+      
+      // Add each schedule to the table
+      schedules.forEach(schedule => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-50';
+        
+        // Format date
+        let createdDate = 'Unknown';
+        if (schedule.createdAt) {
+          const date = new Date(schedule.createdAt);
+          createdDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+        }
+        
+        // Active status
+        const activeStatus = schedule.active ? 
+          '<span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">Active</span>' : 
+          '<span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">Inactive</span>';
+        
+        // Medication count
+        const medCount = schedule.medications ? schedule.medications.length : 0;
+        
+        // Build the row HTML
+        row.innerHTML = `
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm font-medium text-gray-900">${schedule.name || 'Untitled Schedule'}</div>
+            <div class="text-sm text-gray-500">${createdDate}</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            <div class="text-sm text-gray-900">${medCount} medication(s)</div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap">
+            ${activeStatus}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+            <button class="text-indigo-600 hover:text-indigo-900 mr-3 view-btn" data-id="${schedule.id}">
+              View
+            </button>
+            <button class="text-red-600 hover:text-red-900 delete-btn" data-id="${schedule.id}">
+              Delete
+            </button>
+          </td>
+        `;
+        
+        // Add the row to the table
+        schedulesTbody.appendChild(row);
+        
+        // Add event listeners to the buttons
+        const viewBtn = row.querySelector('.view-btn');
+        const deleteBtn = row.querySelector('.delete-btn');
+        
+        viewBtn.addEventListener('click', () => viewScheduleDetails(schedule.id));
+        deleteBtn.addEventListener('click', () => confirmDeleteSchedule(schedule.id));
+      });
+    }
+    
+    // Function to view schedule details
+    function viewScheduleDetails(scheduleId) {
+      console.log(`Viewing details for schedule: ${scheduleId}`);
+      
+      // Find the schedule in our global array
+      const schedule = allSchedules.find(s => s.id === scheduleId);
+      
+      if (!schedule) {
+        console.error(`Schedule not found: ${scheduleId}`);
+        return;
+      }
+      
+      // Set the modal title
+      detailTitle.textContent = schedule.name || 'Untitled Schedule';
+      
+      // Format the creation date
+      let createdDate = 'Unknown';
+      if (schedule.createdAt) {
+        const date = new Date(schedule.createdAt);
+        createdDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+      }
+      
+      // Populate the modal with schedule details
+      const detailContent = document.getElementById('detail-content');
+      detailContent.innerHTML = '';
+      
+      // Schedule info section
+      const infoSection = document.createElement('div');
+      infoSection.className = 'mb-6';
+      infoSection.innerHTML = `
+        <div class="text-sm text-gray-500 mb-2">Created: ${createdDate}</div>
+        <div class="flex items-center mb-2">
+          <span class="mr-2">Status:</span>
+          <span class="px-2 py-1 ${schedule.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'} rounded-full text-xs font-medium">
+            ${schedule.active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+      `;
+      detailContent.appendChild(infoSection);
+      
+      // Medications section
+      if (schedule.medications && schedule.medications.length > 0) {
+        const medsSection = document.createElement('div');
+        medsSection.className = 'mb-6';
+        medsSection.innerHTML = `
+          <h3 class="text-base font-medium text-gray-900 mb-3">Medications (${schedule.medications.length})</h3>
+          <ul class="list-disc pl-5 space-y-2">
+            ${schedule.medications.map(med => {
+              const medName = med.name || med.Name?.Generic || med.Name?.Brand || med.SuggestedName || 'Unnamed Medication';
+              const dosage = med.dosage || med.Dosage || '';
+              const frequency = med.frequency || med.Frequency || '';
+              
+              let medInfo = medName;
+              if (dosage) medInfo += ` (${dosage})`;
+              if (frequency) medInfo += ` - ${frequency}`;
+              
+              return `<li class="text-sm">${medInfo}</li>`;
+            }).join('')}
+          </ul>
+        `;
+        detailContent.appendChild(medsSection);
+      }
+      
+      // Daily schedule section
+      if (schedule.schedule && schedule.schedule.dailySchedule && schedule.schedule.dailySchedule.length > 0) {
+        const scheduleSection = document.createElement('div');
+        scheduleSection.className = 'mb-6';
+        scheduleSection.innerHTML = `
+          <h3 class="text-base font-medium text-gray-900 mb-3">Daily Schedule</h3>
+          <div class="space-y-4">
+            ${schedule.schedule.dailySchedule.map(timeSlot => {
+              const foodInfo = timeSlot.withFood ? 'with food' : 'without food';
+              
+              return `
+                <div class="border border-gray-200 rounded-md p-3">
+                  <div class="font-medium mb-1">${timeSlot.timeOfDay} (${timeSlot.suggestedTime}) - ${foodInfo}</div>
+                  <ul class="list-disc pl-5 space-y-1">
+                    ${timeSlot.medications.map(med => {
+                      let medInfo = med.name;
+                      if (med.dosage) medInfo += ` (${med.dosage})`;
+                      if (med.specialInstructions) medInfo += ` - ${med.specialInstructions}`;
+                      
+                      return `<li class="text-sm">${medInfo}</li>`;
+                    }).join('')}
+                  </ul>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        detailContent.appendChild(scheduleSection);
+      }
+      
+      // Special notes section
+      if (schedule.schedule && schedule.schedule.specialNotes) {
+        const notesSection = document.createElement('div');
+        notesSection.className = 'mb-6';
+        notesSection.innerHTML = `
+          <h3 class="text-base font-medium text-gray-900 mb-2">Special Notes</h3>
+          <div class="text-sm border border-gray-200 rounded-md p-3 bg-gray-50">
+            ${schedule.schedule.specialNotes}
+          </div>
+        `;
+        detailContent.appendChild(notesSection);
+      }
+      
+      // Add action buttons
+      const actionSection = document.createElement('div');
+      actionSection.className = 'flex justify-end space-x-3 mt-6';
+      actionSection.innerHTML = `
+        <button id="modal-delete-btn" data-id="${scheduleId}" class="inline-flex items-center px-3 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-white hover:bg-red-50">
+          Delete Schedule
+        </button>
+        <button id="modal-toggle-btn" data-id="${scheduleId}" data-active="${schedule.active}" class="inline-flex items-center px-3 py-2 border border-indigo-300 text-sm font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50">
+          ${schedule.active ? 'Deactivate' : 'Activate'} Schedule
+        </button>
+      `;
+      detailContent.appendChild(actionSection);
+      
+      // Add event listeners to action buttons
+      const modalDeleteBtn = document.getElementById('modal-delete-btn');
+      const modalToggleBtn = document.getElementById('modal-toggle-btn');
+      
+      modalDeleteBtn.addEventListener('click', () => {
+        // Hide modal first
+        detailModal.classList.add('hidden');
+        // Then show delete confirmation
+        confirmDeleteSchedule(scheduleId);
+      });
+      
+      modalToggleBtn.addEventListener('click', () => {
+        toggleScheduleActive(scheduleId, schedule.active);
+      });
+      
+      // Show modal
+      detailModal.classList.remove('hidden');
+    }
+    
+    // Function to confirm schedule deletion
+    function confirmDeleteSchedule(scheduleId) {
+      console.log(`Confirming deletion for schedule: ${scheduleId}`);
+      
+      // Set up confirmation modal
+      const confirmModal = document.getElementById('confirm-modal');
+      const confirmMessage = document.getElementById('confirm-message');
+      const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+      const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+      
+      // Customize confirmation message
+      confirmMessage.textContent = 'Are you sure you want to delete this medication schedule? This action cannot be undone.';
+      
+      // Update delete button
+      confirmDeleteBtn.setAttribute('data-id', scheduleId);
+      
+      // Set up event handlers
+      confirmDeleteBtn.onclick = () => {
+        deleteSchedule(scheduleId);
+        confirmModal.classList.add('hidden');
+      };
+      
+      cancelDeleteBtn.onclick = () => {
+        confirmModal.classList.add('hidden');
+      };
+      
+      // Show the modal
+      confirmModal.classList.remove('hidden');
+    }
+    
+    // Function to delete a schedule
+    function deleteSchedule(scheduleId) {
+      console.log(`Deleting schedule: ${scheduleId}`);
+      
+      // Show loading state
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50';
+      loadingDiv.innerHTML = `
+        <div class="bg-white p-5 rounded-lg shadow-xl text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+          <p class="text-gray-700">Deleting schedule...</p>
+        </div>
+      `;
+      document.body.appendChild(loadingDiv);
+      
+      // Make delete request to API
+      fetch(`/api/documents/med-schedules/${scheduleId}`, {
+        method: 'DELETE'
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to delete schedule: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Schedule deleted successfully', data);
+          
+          // Remove the loading div
+          document.body.removeChild(loadingDiv);
+          
+          // Show success message
+          const successDiv = document.createElement('div');
+          successDiv.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 shadow-md rounded-md z-50';
+          successDiv.innerHTML = `
+            <div class="flex items-center">
+              <div class="py-1"><svg class="h-6 w-6 text-green-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg></div>
+              <div>
+                <p class="font-bold">Success</p>
+                <p class="text-sm">Schedule deleted successfully.</p>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(successDiv);
+          
+          // Remove success message after 3 seconds
+          setTimeout(() => {
+            if (document.body.contains(successDiv)) {
+              document.body.removeChild(successDiv);
+            }
+          }, 3000);
+          
+          // Refresh schedules list
+          fetchSchedules();
+        })
+        .catch(error => {
+          console.error('Error deleting schedule:', error);
+          
+          // Remove the loading div
+          document.body.removeChild(loadingDiv);
+          
+          // Show error message
+          showError(`Failed to delete schedule: ${error.message}`);
+        });
+    }
+    
+    // Function to toggle schedule active state
+    function toggleScheduleActive(scheduleId, currentActiveState) {
+      console.log(`Toggling schedule ${scheduleId} active state from: ${currentActiveState}`);
+      
+      // Show loading state
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50';
+      loadingDiv.innerHTML = `
+        <div class="bg-white p-5 rounded-lg shadow-xl text-center">
+          <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mb-2"></div>
+          <p class="text-gray-700">Updating schedule...</p>
+        </div>
+      `;
+      document.body.appendChild(loadingDiv);
+      
+      // Prepare update data
+      const updateData = {
+        active: !currentActiveState
+      };
+      
+      // Make update request to API
+      fetch(`/api/documents/med-schedules/${scheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updateData)
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to update schedule: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          console.log('Schedule updated successfully', data);
+          
+          // Remove the loading div
+          document.body.removeChild(loadingDiv);
+          
+          // Hide the detail modal
+          detailModal.classList.add('hidden');
+          
+          // Show success message
+          const successDiv = document.createElement('div');
+          successDiv.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 shadow-md rounded-md z-50';
+          successDiv.innerHTML = `
+            <div class="flex items-center">
+              <div class="py-1"><svg class="h-6 w-6 text-green-500 mr-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg></div>
+              <div>
+                <p class="font-bold">Success</p>
+                <p class="text-sm">Schedule ${!currentActiveState ? 'activated' : 'deactivated'} successfully.</p>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(successDiv);
+          
+          // Remove success message after 3 seconds
+          setTimeout(() => {
+            if (document.body.contains(successDiv)) {
+              document.body.removeChild(successDiv);
+            }
+          }, 3000);
+          
+          // Refresh schedules list
+          fetchSchedules();
+        })
+        .catch(error => {
+          console.error('Error updating schedule:', error);
+          
+          // Remove the loading div
+          document.body.removeChild(loadingDiv);
+          
+          // Show error message
+          showError(`Failed to update schedule: ${error.message}`);
+        });
+    }
+    
+    function editSchedule(scheduleId, schedules) {
+      // Find the schedule in the list
+      const schedule = schedules.find(s => s.id === scheduleId);
+      
+      if (!schedule) {
+        alert('Schedule not found');
+        return;
+      }
+      
+      // Store current schedule ID for save action
+      currentScheduleId = scheduleId;
+      
+      // Populate the edit form
+      editNameInput.value = schedule.name || '';
+      
+      // Set correct radio button based on active status
+      if (schedule.active) {
+        editStatusActive.checked = true;
+      } else {
+        editStatusInactive.checked = true;
+      }
+      
+      // Show edit modal
+      editModal.classList.remove('hidden');
+      document.body.classList.add('overflow-hidden');
+    }
+    
+    function saveEditedSchedule() {
+      // Get values from form
+      const name = editNameInput.value.trim();
+      const active = editStatusActive.checked;
+      
+      if (!name) {
+        alert('Please enter a schedule name');
+        return;
+      }
+      
+      // Call API to update schedule
+      fetch(`/api/documents/med-schedules/${currentScheduleId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: name,
+          active: active
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        if (data.success) {
+          // Hide edit modal
+          editModal.classList.add('hidden');
+          document.body.classList.remove('overflow-hidden');
+          
+          // Show success message
+          alert('Schedule updated successfully');
+          
+          // Refresh schedules
+          fetchSchedules();
+        } else {
+          throw new Error(data.error || 'Failed to update schedule');
+        }
+      })
+      .catch(error => {
+        alert(`Error updating schedule: ${error.message}`);
+      });
+    }
+  });
+</script> 

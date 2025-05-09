@@ -1,20 +1,6 @@
-// Firebase configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyA8TUkmdL1s_-qc_qcnZeO7mN0kz0qONCE",
-    authDomain: "rxplain.firebaseapp.com",
-    projectId: "rxplain",
-    storageBucket: "rxplain.firebasestorage.app",
-    messagingSenderId: "122430450099",
-    appId: "1:122430450099:web:be5bf161c2dc49685a43c6",
-    measurementId: "G-069YDW1QQK"
-};
-
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-
-// Initialize Firestore and Auth
-const db = firebase.firestore();
-const auth = firebase.auth();
+// Initialize Firestore and Auth variables, but defer initialization
+let db;
+let auth;
 
 // DOM elements
 const fileInput = document.getElementById('file-input');
@@ -28,6 +14,20 @@ const documentList = document.getElementById('document-list');
 const emptyState = document.getElementById('empty-state');
 const searchInput = document.getElementById('search-input');
 const navLoadingIndicator = document.querySelector('.nav-loading');
+const createReportBtn = document.getElementById('create-report-btn');
+const selectedCountDisplay = document.getElementById('selected-count');
+const dashboardLoadingOverlay = document.getElementById('dashboard-loading-overlay');
+
+// --- Caching Constants --- 
+const DOCS_CACHE_KEY = 'rxplain_docs_cache';
+const DOCS_CACHE_EXPIRY_KEY = 'rxplain_docs_cache_expiry';
+const DOCS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
+
+// Keep track of selected documents (UI state only)
+let selectedDocuments = new Set();
+
+// Keep track of currently displayed documents (for comparison)
+let currentlyDisplayedDocs = [];
 
 // Hide loading indicator if it exists
 if (navLoadingIndicator) {
@@ -38,86 +38,226 @@ if (navLoadingIndicator) {
 const supportedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
 const maxFileSize = 10 * 1024 * 1024; // 10MB in bytes
 
-// Check if user is authenticated
-auth.onAuthStateChanged(async function(user) {
-    // Show loading indicator
-    if (navLoadingIndicator) {
-        navLoadingIndicator.style.display = 'inline-block';
-    }
+// --- Function Definitions ---
 
-    if (user) {
-        try {
-            // Get the ID token
-            const idToken = await user.getIdToken();
-            
-            // Create a session
-            const response = await fetch('/api/session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ idToken })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to create session');
-            }
-
-            // User is signed in and has a valid session, load their documents
-            loadDocuments();
-        } catch (error) {
-            console.error('Session creation failed:', error);
-            // Redirect to login if session creation fails
-            window.location.href = '/login';
+// Function to initialize dashboard UI elements (listeners, etc.)
+function initializeDashboardUI() {
+    setupFilterUI();
+    setupFileUpload();
+    // setupSearch(); // REMOVED - Handled by setupFilters called within setupFilterUI
+    
+    // Initialize selectedDocuments Set from checked checkboxes (if page reloads)
+    const checkedBoxes = document.querySelectorAll('.select-doc-checkbox:checked');
+    checkedBoxes.forEach(checkbox => {
+        if (checkbox.checked && checkbox.dataset.id) {
+            selectedDocuments.add(checkbox.dataset.id);
         }
+    });
+    
+    // Initialize button state
+    updateSelectedCount();
+    
+    // Add event listener for the Create Report button
+    const createReportBtn = document.getElementById('create-report-btn');
+    if (createReportBtn) {
+        createReportBtn.addEventListener('click', createCombinedReport);
+    }
+    
+    // Activate the correct nav item
+    // REMOVED: setActiveNavItem('/dashboard'); // This is now handled globally in firebase-client.js
+}
+
+// Function to set the active nav item - MOVED TO firebase-client.js
+/* function setActiveNavItem(path) {
+    const navLinks = document.querySelectorAll('#logged-in-nav a');
+    navLinks.forEach(link => {
+        if (link.getAttribute('href') === path) {
+            link.classList.add('bg-health-700', 'text-white');
+            link.classList.remove('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
     } else {
-        // User is signed out, redirect to login
-        window.location.href = '/login';
-    }
+            link.classList.remove('bg-health-700', 'text-white');
+            link.classList.add('text-gray-300', 'hover:bg-health-700', 'hover:text-white');
+        }
+    });
+} */
 
-    // Hide loading indicator
-    if (navLoadingIndicator) {
-        navLoadingIndicator.style.display = 'none';
-    }
-});
+// --- NEW Caching and Fetching Logic ---
 
-// Load user documents from server
-async function loadDocuments() {
-    try {
-        // Show loading state
-        documentList.innerHTML = '<div class="text-center py-4"><p class="text-gray-500">Loading documents...</p></div>';
+// Function to load documents from cache IF available and valid
+function loadDocumentsFromCache() {
+    console.log('[Dashboard.js] Entering loadDocumentsFromCache...');
+    const cachedData = localStorage.getItem(DOCS_CACHE_KEY);
+    const cacheExpiry = localStorage.getItem(DOCS_CACHE_EXPIRY_KEY);
+    const now = new Date().getTime();
+    console.log(`[Dashboard.js] Docs Cache check: now=${now}, expiry=${cacheExpiry}`);
+
+    if (cachedData && cacheExpiry && now < parseInt(cacheExpiry)) {
+        console.log('[Dashboard.js] Docs Cache HIT and VALID. Attempting to parse.');
+        try {
+            const parsedData = JSON.parse(cachedData);
+            if (parsedData && Array.isArray(parsedData.documents)) {
+                console.log('[Dashboard.js] Cached docs data structure valid. Using cache.');
+                currentlyDisplayedDocs = parsedData.documents; 
+                renderDocumentList(currentlyDisplayedDocs); // Render immediately
+                // Ensure loading/empty states are correctly hidden/shown
+                loadingPlaceholder?.classList.add('hidden'); // Use optional chaining
+                if (currentlyDisplayedDocs.length > 0) {
         documentList.classList.remove('hidden');
         emptyState.classList.add('hidden');
-        
-        // Get user's documents from the server
-        const response = await fetch('/api/documents/user-documents');
-        if (!response.ok) {
-            throw new Error('Failed to fetch documents');
+                } else {
+                     documentList.classList.add('hidden');
+                     showEmptyState(); // Use existing function for consistency
+                }
+                console.log('[Dashboard.js] Exiting loadDocumentsFromCache (used cache).');
+                return true; // Indicate cache was used
+            } else {
+                console.warn('[Dashboard.js] Cached docs data structure invalid. Clearing cache.', parsedData);
+                clearDocsCache(false);
+            }
+        } catch (e) {
+            console.error('[Dashboard.js] Error parsing cached docs data. Clearing cache.', e);
+            clearDocsCache(false);
         }
-        
-        const data = await response.json();
-        
-        if (!data.documents || data.documents.length === 0) {
-            showEmptyState();
+    } else if (cachedData) {
+         console.log('[Dashboard.js] Docs Cache HIT but EXPIRED.');
+    } else {
+         console.log('[Dashboard.js] Docs Cache MISS.');
+    }
+    console.log('[Dashboard.js] Exiting loadDocumentsFromCache (did NOT use cache).');
+    return false;
+}
+
+// Function to fetch documents from the server
+async function fetchDocumentsFromServer() {
+    console.log('[Dashboard.js] Entering fetchDocumentsFromServer...');
+    const fetchUrl = '/api/documents/user-documents';
+    try {
+        const response = await fetch(fetchUrl);
+        console.log(`[Dashboard.js] Docs API response status: ${response.status} ${response.statusText}`);
+        const rawText = await response.text(); // Get text for better debugging
+        if (!response.ok) {
+             console.error('[Dashboard.js] Docs API Response not OK. Raw text:', rawText);
+             throw new Error(`Failed to fetch documents: ${response.status} ${response.statusText}`);
+        }
+        const data = JSON.parse(rawText);
+        console.log('[Dashboard.js] Parsed docs data from server:', data);
+        if (data && Array.isArray(data.documents)) {
+            console.log(`[Dashboard.js] Successfully fetched ${data.documents.length} documents from server.`);
+            return data.documents;
+        } else {
+            console.error('[Dashboard.js] Invalid docs response structure from server:', data);
+            throw new Error('Invalid document data structure from server');
+        }
+    } catch (error) {
+        console.error('[Dashboard.js] Error during fetchDocumentsFromServer:', error);
+        throw error;
+    }
+}
+
+// Function to compare document lists (simple comparison based on IDs and maybe updatedAt)
+function areDocumentListsDifferent(listA, listB) {
+    console.log(`[Dashboard.js] Comparing doc lists. List A length: ${listA.length}, List B length: ${listB.length}`);
+    if (listA.length !== listB.length) {
+        console.log('[Dashboard.js] Doc lists have different lengths. Result: true');
+        return true;
+    }
+    const mapA = new Map(listA.map(doc => [doc.id, doc.updatedAt || doc.createdAt]));
+    for (const docB of listB) {
+        if (!mapA.has(docB.id) || mapA.get(docB.id) !== (docB.updatedAt || docB.createdAt)) {
+            console.log(`[Dashboard.js] Difference found for doc ${docB.id}. Result: true`);
+            return true; // Found a new doc or an updated doc
+        }
+    }
+    console.log('[Dashboard.js] Doc lists appear identical. Result: false');
+    return false;
+}
+
+// Function to save data to cache
+function cacheDocumentsData(docs) {
+    console.log(`[Dashboard.js] Attempting to cache ${docs.length} docs.`);
+    const now = new Date().getTime();
+    // Store the raw array structure expected by the cache loader
+    const dataToCache = { documents: docs }; 
+    try {
+        localStorage.setItem(DOCS_CACHE_KEY, JSON.stringify(dataToCache));
+        localStorage.setItem(DOCS_CACHE_EXPIRY_KEY, (now + DOCS_CACHE_DURATION).toString());
+        console.log('[Dashboard.js] Successfully updated docs cache.');
+    } catch (e) {
+        console.warn('[Dashboard.js] Failed to cache docs data:', e);
+    }
+}
+
+// --- End NEW Caching and Fetching Logic ---
+
+// RENDER Document List (Replaces direct manipulation in loadDocuments)
+function renderDocumentList(docs) {
+    console.log(`[Dashboard.js] Entering renderDocumentList with ${docs ? docs.length : 'null'} documents.`);
+    if (!documentList || !emptyState) { // Add check for required elements
+        console.error("[Dashboard.js] Cannot render document list: target elements missing.");
             return;
         }
         
-        // Clear document list
+    // Clear previous content
         documentList.innerHTML = '';
         
-        // Add each document to the list
-        data.documents.forEach(documentData => {
-            addDocumentToList(documentData);
-        });
-        
-        // Show document list
+    if (!docs || docs.length === 0) {
+        console.log('[Dashboard.js] No documents to render. Showing empty state.');
+        documentList.classList.add('hidden');
+        showEmptyState(); // Use existing function
+        return;
+    }
+    
+    console.log('[Dashboard.js] Rendering document items...');
         documentList.classList.remove('hidden');
         emptyState.classList.add('hidden');
-    } catch (error) {
-        console.error('Error loading documents:', error);
-        showError('Error loading documents. Please try again later.');
-        showEmptyState();
+    
+    // Sort documents by creation date (newest first) - Apply sorting here
+    docs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    docs.forEach(documentData => {
+        addDocumentToList(documentData); // Calls the existing function to create and append ONE item
+    });
+     console.log('[Dashboard.js] Finished rendering document items.');
+}
+
+// MODIFIED loadDocuments - Now acts as the trigger/orchestrator
+async function loadDocuments(skipCache = true) { // Changed default to true to disable cache
+    console.log('[Dashboard.js] Entering loadDocuments (now initializeDocumentsDisplay)...');
+    
+    // Show loading overlay
+    if (dashboardLoadingOverlay) {
+        dashboardLoadingOverlay.classList.remove('hidden');
     }
+    
+    // This function is now primarily called after auth confirmation or after upload.
+    // This function now skips the cache by default while we debug document status issues
+    console.log('[Dashboard.js] Cache mechanism temporarily disabled - always fetching fresh data');
+
+    try {
+        const freshDocs = await fetchDocumentsFromServer();
+        console.log(`[Dashboard.js] loadDocuments: Fetched ${freshDocs.length} fresh docs.`);
+        
+        // Since we're skipping cache, we always update the display
+        console.log('[Dashboard.js] Always updating display with fresh data (cache disabled)');
+        currentlyDisplayedDocs = freshDocs;
+        renderDocumentList(currentlyDisplayedDocs);
+        
+        // We'll still update the cache for when it's re-enabled later
+        if (!skipCache) {
+            cacheDocumentsData(freshDocs);
+        } else {
+            console.log('[Dashboard.js] Skipping document caching as requested');
+        }
+    } catch (error) {
+        console.error('[Dashboard.js] Error in loadDocuments (fetch stage):', error);
+        showErrorNotice('Could not refresh document list.'); // Use new notice function
+    } finally {
+        // Hide loading overlay when everything is done
+        if (dashboardLoadingOverlay) {
+            dashboardLoadingOverlay.classList.add('hidden');
+        }
+    }
+    console.log('[Dashboard.js] Exiting loadDocuments (initializeDocumentsDisplay).');
 }
 
 // Show empty state
@@ -126,13 +266,13 @@ function showEmptyState() {
     emptyState.classList.remove('hidden');
 }
 
-// Show error message
+// Show error message (for upload/general errors, might be less used now)
 function showError(message) {
     errorMessage.textContent = message;
     errorMessage.classList.remove('hidden');
 }
 
-// Add document to the list
+// Add document to the list (Now just creates and appends ONE item)
 function addDocumentToList(documentData) {
     // Create document item
     const documentItem = document.createElement('div');
@@ -160,9 +300,70 @@ function addDocumentToList(documentData) {
 
     // Set processing status indicator
     let processingStatus = '';
+    let endorsementStatus = '';
+    let isPending = false;
+    let mostRecentStatus = 'unprocessed';
+    let mostRecentTimestamp = 0;
+    
+    // Determine the most recent status (endorsed or flagged) based on timestamp
+    if (documentData.endorsedBy && documentData.endorsedBy.timestamp && typeof documentData.endorsedBy.timestamp._seconds === 'number') {
+        // Convert Firestore timestamp to milliseconds
+        const endorseTimestamp = (documentData.endorsedBy.timestamp._seconds * 1000) + 
+                                 (documentData.endorsedBy.timestamp._nanoseconds / 1000000);
+        if (endorseTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'endorsed';
+            mostRecentTimestamp = endorseTimestamp;
+        }
+    }
+    
+    if (documentData.flaggedBy && documentData.flaggedBy.timestamp && typeof documentData.flaggedBy.timestamp._seconds === 'number') {
+         // Convert Firestore timestamp to milliseconds
+        const flagTimestamp = (documentData.flaggedBy.timestamp._seconds * 1000) + 
+                              (documentData.flaggedBy.timestamp._nanoseconds / 1000000);
+        if (flagTimestamp > mostRecentTimestamp) {
+            mostRecentStatus = 'flagged';
+            mostRecentTimestamp = flagTimestamp;
+        }
+    }
+    
+    console.log(`[Dashboard.js] Doc ID: ${documentData.id}, Determined most recent status: ${mostRecentStatus}`);
+    
+    // Set endorsement/flag status based on most recent action
+    if (mostRecentStatus === 'endorsed') {
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Endorsed
+            </span>
+        `;
+    } else if (mostRecentStatus === 'flagged') {
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Flagged
+            </span>
+        `;
+    } else if (documentData.isProcessed) {
+        // Only show pending if not endorsed or flagged
+        endorsementStatus = `
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 ml-2">
+                <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Pending Review
+            </span>
+        `;
+        isPending = true;
+    }
+    
+    // Always show processed status if the document is processed
     if (documentData.isProcessed) {
         processingStatus = `
-            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800">
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full bg-green-100 text-green-800 ml-2">
                 <svg class="w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                 </svg>
@@ -171,7 +372,7 @@ function addDocumentToList(documentData) {
         `;
     } else if (documentData.isProcessing) {
         processingStatus = `
-            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2">
+            <span class="inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2 processing-indicator">
                 <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -217,62 +418,145 @@ function addDocumentToList(documentData) {
         `;
     }
     
+    // Add doctor feedback information - only show the most recent one
+    let doctorFeedback = '';
+    if (mostRecentStatus === 'endorsed' && documentData.endorsedBy) {
+        // Use the calculated mostRecentTimestamp (which is already in milliseconds)
+        const endorseDate = new Date(mostRecentTimestamp).toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-green-50 rounded border border-green-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-green-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-green-700">
+                            <span class="font-medium">Endorsed by Dr. ${documentData.endorsedBy.displayName}</span>
+                            <span class="mx-1">•</span>
+                            <span>${endorseDate}</span>
+                        </div>
+                        ${documentData.endorsedBy.note ? `<p class="text-xs mt-1 text-gray-700">${documentData.endorsedBy.note}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (mostRecentStatus === 'flagged' && documentData.flaggedBy) {
+        // Use the calculated mostRecentTimestamp (which is already in milliseconds)
+        const flagDate = new Date(mostRecentTimestamp).toLocaleDateString('en-US', {
+             year: 'numeric', month: 'short', day: 'numeric' 
+        });
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-yellow-50 rounded border border-yellow-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-yellow-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-yellow-700">
+                            <span class="font-medium">Flagged by Dr. ${documentData.flaggedBy.displayName}</span>
+                            <span class="mx-1">•</span>
+                            <span>${flagDate}</span>
+                        </div>
+                        ${documentData.flaggedBy.note ? `<p class="text-xs mt-1 text-gray-700">${documentData.flaggedBy.note}</p>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    } else if (isPending) {
+        doctorFeedback = `
+            <div class="mt-2 p-2 bg-blue-50 rounded border border-blue-100">
+                <div class="flex items-start">
+                    <svg class="w-4 h-4 mr-1 text-blue-500 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div>
+                        <div class="text-xs text-blue-700">
+                            <span class="font-medium">Awaiting doctor review</span>
+                        </div>
+                        <p class="text-xs mt-1 text-gray-700">This document is waiting for a doctor to review it.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+    
     // Set document item HTML
     documentItem.innerHTML = `
-        <div class="flex items-start">
-            <div class="flex-shrink-0 mr-2">
-                <input type="checkbox" class="select-doc-checkbox h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded" data-id="${documentData.id}">
-            </div>
-            <div class="w-10 h-10 mr-4 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    ${fileIcon}
-            </svg>
-            </div>
-            <div class="flex-grow">
-                <div class="flex items-center flex-wrap">
-                    <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
-                    ${processingStatus}
-                    ${documentTypeBadge}
+        <div class="flex items-start justify-between">
+            <div class="flex items-start">
+                <div class="flex-shrink-0 mr-2">
+                    <input type="checkbox" class="select-doc-checkbox h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded" data-id="${documentData.id}">
                 </div>
-                <div class="text-sm text-gray-500 mt-1">
-                    ${fileSize} • Uploaded on ${createdDate}
-            </div>
-        </div>
-        <div class="flex space-x-2">
-                <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                <div class="w-10 h-10 mr-4 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        ${fileIcon}
                 </svg>
-            </button>
-                <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI">
+                </div>
+                <div class="flex-grow">
+                    <div class="flex items-center flex-wrap">
+                        <h3 class="font-medium text-gray-900">${documentData.fileName}</h3>
+                        ${processingStatus}
+                        ${endorsementStatus}
+                        ${documentTypeBadge}
+                    </div>
+                    <div class="text-sm text-gray-500 mt-1">
+                        ${fileSize} • Uploaded on ${createdDate}
+                    </div>
+                    ${doctorFeedback}
+                </div>
+            </div>
+            <div class="flex space-x-2">
+                <button class="view-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" title="View Original">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </button>
+                <button class="simplify-btn p-2 text-gray-500 hover:text-blue-500" data-id="${documentData.id}" title="Simplify with AI" data-is-processed="${documentData.isProcessed || false}">
                     <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
                 </button>
+                <button class="rename-btn p-2 text-gray-500 hover:text-yellow-500" data-id="${documentData.id}" data-name="${documentData.fileName}" title="Rename">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                </button>
                 <button class="download-btn p-2 text-gray-500 hover:text-health-500" data-url="${documentData.fileUrl}" data-filename="${documentData.fileName}" title="Download">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                </button>
                 <button class="delete-btn p-2 text-gray-500 hover:text-red-500" data-id="${documentData.id}" title="Delete">
-                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-            </button>
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </button>
             </div>
         </div>
     `;
     
-    // Add document item to the list
-    documentList.prepend(documentItem);
+    // Add document to the "endorsed", "flagged", or "pending" dataset attributes for filtering
+    if (mostRecentStatus === 'endorsed') {
+        documentItem.dataset.endorsed = "true";
+    } else if (mostRecentStatus === 'flagged') {
+        documentItem.dataset.flagged = "true";
+    } else if (isPending) {
+        documentItem.dataset.pending = "true";
+    }
     
-    // Add event listeners for buttons
+    // Append item to the list (modified from prepend)
+    documentList.appendChild(documentItem);
+    
+    // Add event listeners for buttons (keep existing logic)
     const viewBtn = documentItem.querySelector('.view-btn');
     const simplifyBtn = documentItem.querySelector('.simplify-btn');
     const downloadBtn = documentItem.querySelector('.download-btn');
     const deleteBtn = documentItem.querySelector('.delete-btn');
     const checkbox = documentItem.querySelector('.select-doc-checkbox');
+    const renameBtn = documentItem.querySelector('.rename-btn');
     
     viewBtn.addEventListener('click', function() {
         const fileUrl = this.dataset.url;
@@ -282,6 +566,12 @@ function addDocumentToList(documentData) {
     simplifyBtn.addEventListener('click', function() {
         const documentId = this.dataset.id;
         simplifyDocument(documentId);
+    });
+    
+    renameBtn.addEventListener('click', function() {
+        const documentId = this.dataset.id;
+        const currentName = this.dataset.name;
+        renameDocument(documentId, currentName, documentItem);
     });
     
     downloadBtn.addEventListener('click', function() {
@@ -299,52 +589,121 @@ function addDocumentToList(documentData) {
         const documentId = this.dataset.id;
         toggleDocumentSelection(documentId, this.checked);
     });
-    
-    // Check the checkbox if the document is already selected
-    if (documentData.isSelected) {
-        checkbox.checked = true;
+}
+
+// Rename document function
+async function renameDocument(documentId, currentName, documentItem) {
+    if (!Swal) {
+        console.error('SweetAlert (Swal) is not available.');
+        showError('UI component missing. Cannot rename.');
+        return;
+    }
+
+    const { value: newName } = await Swal.fire({
+        title: 'Rename Document',
+        input: 'text',
+        inputValue: currentName,
+        inputLabel: 'New file name',
+        inputPlaceholder: 'Enter the new file name',
+        showCancelButton: true,
+        confirmButtonText: 'Rename',
+        confirmButtonColor: '#16a34a',
+        inputValidator: (value) => {
+            if (!value || value.trim().length === 0) {
+                return 'File name cannot be empty!'
+            }
+            // Basic validation (e.g., avoid slashes), add more as needed
+            if (/[/\\:*?"<>|]/.test(value)) {
+                 return 'Invalid characters in file name.';
+            }
+        }
+    });
+
+    if (newName && newName.trim() !== currentName) {
+        console.log(`Attempting to rename document ${documentId} to ${newName.trim()}`);
+        try {
+            const response = await fetch(`/api/documents/${documentId}/rename`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ newName: newName.trim() })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                if (result.success) {
+                    // Update UI
+                    const nameElement = documentItem.querySelector('h3');
+                    if (nameElement) {
+                        nameElement.textContent = result.newName; // Use name returned from server
+                    }
+                    // Update the button's data-name attribute too
+                    const renameButton = documentItem.querySelector('.rename-btn');
+                    if (renameButton) {
+                         renameButton.dataset.name = result.newName;
+                    }
+                    // Update download button data-filename if needed
+                    const downloadButton = documentItem.querySelector('.download-btn');
+                    if (downloadButton) {
+                         downloadButton.dataset.filename = result.newName;
+                    }
+                    Swal.fire('Renamed!', 'Document name updated successfully.', 'success');
+                } else {
+                    throw new Error(result.error || 'Failed to rename on server');
+                }
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Server error: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error renaming document:', error);
+            Swal.fire('Error', `Could not rename document: ${error.message}`, 'error');
+        }
+    } else if (newName && newName.trim() === currentName) {
+        console.log('Rename cancelled or name unchanged.');
     }
 }
 
 // Delete document
 async function deleteDocument(documentId, documentItem) {
-    if (!confirm('Are you sure you want to delete this document?')) {
-        return;
-    }
-    
+    if (!confirm('Are you sure you want to delete this document?')) return;
+
+    // Show loading animation
+    documentItem.classList.add('animate-pulse', 'opacity-50');
+
     try {
-        const user = auth.currentUser;
-        if (!user) {
-            showError('You must be logged in to delete files.');
-            return;
-        }
-        
-        // Send delete request to server
         const response = await fetch(`/api/documents/${documentId}`, {
             method: 'DELETE',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
             }
         });
-        
-        if (response.ok) {
-            // Remove document item from the list
+
+        if (!response.ok) {
+            throw new Error('Failed to delete document');
+        }
+
+        // Remove the document item from the UI with fade-out animation
+        documentItem.classList.add('animate-fade-out');
+        setTimeout(() => {
             documentItem.remove();
             
-            // Show empty state if no documents left
+            // Check if there are any documents left
             if (documentList.children.length === 0) {
                 showEmptyState();
             }
-            
-            // Show success message
-            showError('Document deleted successfully');
-        } else {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to delete document');
-        }
+        }, 300);
+
+        // Show a success toast or notification
+        showNotification('Document deleted successfully', 'success');
+        
+        // Refresh the document list with cache skipping to ensure we have the latest data
+        await loadDocuments(true);
     } catch (error) {
         console.error('Error deleting document:', error);
-        showError('Error deleting document. Please try again.');
+        documentItem.classList.remove('animate-pulse', 'opacity-50');
+        showNotification('Error deleting document', 'error');
     }
 }
 
@@ -393,27 +752,37 @@ function setupFileUpload() {
 }
 
 // Process the selected file
-function handleFile(file) {
-    // Reset error message
-    errorMessage.classList.add('hidden');
-    
-    // Validate file type
-    if (!supportedTypes.includes(file.type)) {
-        showError('Unsupported file format. Please upload a PDF, JPG, or PNG file.');
+async function handleFile(file) {
+    if (file.size > 10 * 1024 * 1024) {
+        showError('File size must be less than 10MB.');
         return;
     }
-    
-    // Validate file size
-    if (file.size > maxFileSize) {
-        showError('File is too large. Maximum file size is 10MB.');
-        return;
+
+    try {
+        showUploadProgress(true);
+        await uploadFile(file);
+        showUploadProgress(false);
+        
+        // Force reload documents with cache skipping
+        await loadDocuments(true); // Always load fresh data after an upload
+    } catch (error) {
+        console.error('Error handling file:', error);
+        showError('An error occurred uploading the file.');
+        showUploadProgress(false);
     }
-    
-    // Show upload progress
-    uploadProgress.classList.remove('hidden');
-    
-    // Upload file using server-side endpoint
-    uploadFile(file);
+}
+
+// Show or hide upload progress UI
+function showUploadProgress(show) {
+    if (show) {
+        uploadProgress.classList.remove('hidden');
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+    } else {
+        uploadProgress.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressPercentage.textContent = '0%';
+    }
 }
 
 // Upload file to server
@@ -463,8 +832,8 @@ function uploadFile(file) {
                 // Clear file input
                 fileInput.value = '';
                 
-                // Automatically refresh the document list
-                loadDocuments();
+                // Automatically refresh the document list with cache skipping
+                loadDocuments(true); // Always load fresh data after upload
                 
                 // Reset error message after 3 seconds
                 setTimeout(function() {
@@ -513,7 +882,7 @@ function setupSearch() {
         documentItems.forEach(function(item) {
             const fileName = item.dataset.filename;
             if (fileName.includes(searchTerm)) {
-                item.style.display = 'flex';
+                item.style.display = '';
                 hasVisibleItems = true;
             } else {
                 item.style.display = 'none';
@@ -521,17 +890,20 @@ function setupSearch() {
         });
         
         // Show empty state if no documents match the search
+        const currentEmptyState = document.getElementById('empty-state');
         if (!hasVisibleItems && documentItems.length > 0) {
-            emptyState.innerHTML = `
+             if (currentEmptyState) {
+                currentEmptyState.innerHTML = `
                 <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <p>No documents match your search.</p>
                 <p>Try a different search term.</p>
             `;
-            emptyState.classList.remove('hidden');
+                currentEmptyState.classList.remove('hidden');
+             }
         } else if (hasVisibleItems) {
-            emptyState.classList.add('hidden');
+             if (currentEmptyState) currentEmptyState.classList.add('hidden');
         }
     });
 }
@@ -541,28 +913,53 @@ function renderMarkdown(markdown) {
     if (!markdown) return '<p>No content available</p>';
     
     // Use the Marked.js library to render markdown
+    if (typeof marked !== 'undefined') {
     return marked.parse(markdown);
+    }
+    return '<p>Markdown renderer not available.</p>';
 }
 
 // Render medication list
 function renderMedicationList(medications) {
     if (!medications || medications.length === 0) {
-        return '<p class="text-gray-600">No medications found in this document.</p>';
+        return '<p class="text-gray-600 px-4 py-2">No medications found in this document.</p>';
     }
-    
-    let html = '<div class="space-y-4">';
-    
-    medications.forEach(med => {
+
+    let html = '<div class="space-y-6 divide-y divide-gray-200 px-1">'; // Added padding and divider
+
+    medications.forEach((med, index) => {
+        // --- Updated Fallback Logic --- 
+        let medName = med.Name?.Generic || med.Name?.Brand;
+        let isNameExtracted = !!medName; // Flag to know if we found a real extracted name
+
+        if (!isNameExtracted) {
+            if (med.SuggestedName) { // Check for AI Suggested Name first
+                medName = med.SuggestedName;
+            } else if (med.Purpose) { // Then check Purpose
+                // Truncate purpose and use as fallback
+                const truncatedPurpose = med.Purpose.length > 40 ? med.Purpose.substring(0, 40) + '...' : med.Purpose;
+                medName = `Medication (Purpose: ${truncatedPurpose})`;
+            } else { // Finally, use numbered entry
+                // Numbered fallback if no name or purpose
+                medName = `Medication Entry #${index + 1}`;
+            }
+        }
+        // --- End Updated Fallback Logic --- 
+
+        // Apply italic style if the name was NOT specifically extracted (Generic/Brand)
+        const nameStyleClass = isNameExtracted ? 'text-blue-800' : 'text-blue-700 italic'; 
+
+        // Use <dl> for better structure and spacing
         html += `
-            <div class="bg-blue-50 p-4 rounded-lg">
-                <h3 class="text-lg font-semibold">${med.name || 'Unnamed Medication'}</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                    ${med.dosage ? `<p><span class="font-medium">Dosage:</span> ${med.dosage}</p>` : ''}
-                    ${med.frequency ? `<p><span class="font-medium">Frequency:</span> ${med.frequency}</p>` : ''}
-                    ${med.purpose ? `<p><span class="font-medium">Purpose:</span> ${med.purpose}</p>` : ''}
-                </div>
-                ${med.instructions ? `<p class="mt-2"><span class="font-medium">Instructions:</span> ${med.instructions}</p>` : ''}
-                ${med.warnings ? `<p class="mt-2 text-red-600"><span class="font-medium">Warnings:</span> ${med.warnings}</p>` : ''}
+            <div class="pt-4 ${index === 0 ? 'pb-4' : 'py-4'}"> 
+                <h3 class="text-xl font-semibold mb-3 ${nameStyleClass}">${medName}</h3>
+                <dl class="grid grid-cols-1 gap-y-2 sm:grid-cols-2 sm:gap-x-6">
+                    ${med.Dosage ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Dosage:</dt> <dd class="mt-1 text-gray-800">${med.Dosage}</dd></div>` : ''}
+                    ${med.Frequency ? `<div class="sm:col-span-1"><dt class="font-medium text-gray-600">Frequency:</dt> <dd class="mt-1 text-gray-800">${med.Frequency}</dd></div>` : ''}
+                    ${med.Purpose ? `<div class="sm:col-span-2"><dt class="font-medium text-gray-600">Purpose:</dt> <dd class="mt-1 text-gray-800">${med.Purpose}</dd></div>` : ''}
+                    ${med['Special Instructions'] ? `<div class="sm:col-span-2"><dt class="font-medium text-gray-600">Instructions:</dt> <dd class="mt-1 text-gray-800">${med['Special Instructions']}</dd></div>` : ''}
+                    ${med['Important Side Effects'] ? `<div class="sm:col-span-2"><dt class="font-medium text-red-700">Warnings:</dt> <dd class="mt-1 text-red-600">${med['Important Side Effects']}</dd></div>` : ''}
+                </dl>
             </div>
         `;
     });
@@ -580,68 +977,6 @@ function formatFileSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
-// Document ready handler
-document.addEventListener('DOMContentLoaded', function() {
-    // Setup event listeners and initialize dashboard
-    setupFileUpload();
-    setupSearch();
-    setupCreateReportListeners();
-    
-    // Initialize the documents list when auth is ready
-    auth.onAuthStateChanged(async function(user) {
-        if (user) {
-            try {
-                await loadDocuments();
-                restoreDocumentSelections();
-            } catch (error) {
-                console.error('Error initializing dashboard:', error);
-            }
-        }
-    });
-});
-
-// Setup Create Report button
-function setupCreateReportListeners() {
-    const createReportBtn = document.getElementById('create-report-btn');
-    
-    if (createReportBtn) {
-        createReportBtn.addEventListener('click', createCombinedReport);
-    }
-    
-    // Add event delegation for document checkboxes
-    document.addEventListener('change', function(event) {
-        if (event.target && event.target.classList.contains('select-doc-checkbox')) {
-            const documentId = event.target.dataset.id;
-            const isSelected = event.target.checked;
-            
-            toggleDocumentSelection(documentId, isSelected);
-        }
-    });
-}
-
-// Restore document selections from localStorage
-function restoreDocumentSelections() {
-    try {
-        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
-        
-        if (selectedDocs.length > 0) {
-            // Find and check the checkboxes for selected documents
-            const checkboxes = document.querySelectorAll('.select-doc-checkbox');
-            
-            checkboxes.forEach(checkbox => {
-                if (selectedDocs.includes(checkbox.dataset.id)) {
-                    checkbox.checked = true;
-                }
-            });
-            
-            // Update the selection UI
-            updateSelectedCount();
-        }
-    } catch (error) {
-        console.error('Error restoring document selections:', error);
-    }
-}
-
 // Simplify a document with Gemini AI
 async function simplifyDocument(documentId) {
     // Find the document item in the list
@@ -651,13 +986,27 @@ async function simplifyDocument(documentId) {
         return;
     }
     
-    // Update the processing status in the UI
-    const statusElement = documentItem.querySelector('.flex.items-center');
-    if (statusElement) {
+    // --- Get status and set appropriate titles ---
+    const simplifyBtn = documentItem.querySelector('.simplify-btn');
+    const isAlreadyProcessed = simplifyBtn ? (simplifyBtn.dataset.isProcessed === 'true') : false;
+    const swalTitle = isAlreadyProcessed ? 'Loading Simplified Document' : 'Processing Document';
+    const swalHtml = isAlreadyProcessed 
+        ? 'Fetching previously simplified content...' 
+        : 'Simplifying document with Gemini AI...<br>This may take a minute or two.';
+    // --- End status check ---
+
+    // Update the processing status in the UI (only show spinner if actually processing)
+    let processingIndicatorElement = null;
+    const statusElementContainer = documentItem.querySelector('.flex-grow .flex.items-center'); 
+    if (statusElementContainer && !isAlreadyProcessed) { // Only add spinner if not already processed
+        // Remove any existing status indicators first
+        const existingStatuses = statusElementContainer.querySelectorAll('span.inline-flex');
+        existingStatuses.forEach(span => span.remove());
+
         // Add processing indicator
-        const processingStatus = document.createElement('span');
-        processingStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
-        processingStatus.innerHTML = `
+        processingIndicatorElement = document.createElement('span');
+        processingIndicatorElement.className = 'processing-indicator inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 ml-2';
+        processingIndicatorElement.innerHTML = `
             <svg class="w-3 h-3 mr-1 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -665,38 +1014,31 @@ async function simplifyDocument(documentId) {
             Processing
         `;
         
-        // Remove any existing status indicators
-        const existingStatus = statusElement.querySelector('span.inline-flex');
-        if (existingStatus) {
-            existingStatus.remove();
-        }
-        
-        // Add the new processing indicator
-        const titleElement = statusElement.querySelector('h3');
+        // Add the new processing indicator after the title
+        const titleElement = statusElementContainer.querySelector('h3');
         if (titleElement) {
-            titleElement.insertAdjacentElement('afterend', processingStatus);
+            titleElement.insertAdjacentElement('afterend', processingIndicatorElement);
         }
     }
     
     // Disable the simplify button
-    const simplifyBtn = documentItem.querySelector('.simplify-btn');
     if (simplifyBtn) {
         simplifyBtn.disabled = true;
         simplifyBtn.classList.add('opacity-50', 'cursor-not-allowed');
     }
     
     try {
-        // Show loading indicator
+        // Show loading indicator (SweetAlert) with conditional title
         Swal.fire({
-            title: 'Processing Document',
-            html: 'Simplifying document with Gemini AI...<br>This may take a minute or two.',
+            title: swalTitle, // Use conditional title
+            html: swalHtml,   // Use conditional html
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
             }
         });
         
-        // Call the API to process the document
+        // Call the API to process the document (Backend handles already processed case)
         const response = await fetch(`/api/documents/simplify/${documentId}`, {
             method: 'POST',
             headers: {
@@ -715,9 +1057,13 @@ async function simplifyDocument(documentId) {
         Swal.close();
         
         if (result.success) {
-            console.log('Document processed successfully:', result);
+            console.log('Document processed/retrieved successfully:', result);
             
-            // Update the document in the UI to show processed status
+            // Update the document in the UI to show processed status (if it wasn't already)
+             if (statusElementContainer && !isAlreadyProcessed) { // Only update status if it changed
+                 // Remove processing indicator
+                 if (processingIndicatorElement) processingIndicatorElement.remove();
+
             const updatedStatus = document.createElement('span');
             updatedStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-green-100 text-green-800 ml-2';
             updatedStatus.innerHTML = `
@@ -726,11 +1072,13 @@ async function simplifyDocument(documentId) {
                 </svg>
                 Processed
             `;
-            
-            // Replace the processing indicator with the processed status
-            const existingStatus = statusElement.querySelector('span.inline-flex');
-            if (existingStatus) {
-                existingStatus.replaceWith(updatedStatus);
+                // Add the new processed status indicator after the title
+                const titleElement = statusElementContainer.querySelector('h3');
+                 if (titleElement) {
+                     titleElement.insertAdjacentElement('afterend', updatedStatus);
+                 }
+                 // Update the button state
+                 if(simplifyBtn) simplifyBtn.dataset.isProcessed = 'true';
             }
             
             // Re-enable the simplify button
@@ -739,16 +1087,19 @@ async function simplifyDocument(documentId) {
                 simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
             }
             
-            // Show the processed document
+            // Show the processed document modal
             openProcessedDocument(result.document);
         } else {
-            throw new Error(result.error || 'Unknown error occurred');
+            throw new Error(result.error || 'Unknown error occurred during processing');
         }
     } catch (error) {
         console.error('Error processing document:', error);
         
-        // Update UI to show error state
-        if (statusElement) {
+         // Remove processing indicator if it exists
+         if (processingIndicatorElement) processingIndicatorElement.remove();
+
+        // Update UI to show error state (only if it wasn't already processed)
+        if (statusElementContainer && !isAlreadyProcessed) { 
             const errorStatus = document.createElement('span');
             errorStatus.className = 'inline-flex items-center text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-800 ml-2';
             errorStatus.innerHTML = `
@@ -757,11 +1108,10 @@ async function simplifyDocument(documentId) {
                 </svg>
                 Failed
             `;
-            
-            // Replace the processing indicator
-            const existingStatus = statusElement.querySelector('span.inline-flex');
-            if (existingStatus) {
-                existingStatus.replaceWith(errorStatus);
+            // Add the error status indicator after the title
+            const titleElement = statusElementContainer.querySelector('h3');
+             if (titleElement) {
+                 titleElement.insertAdjacentElement('afterend', errorStatus);
             }
         }
         
@@ -771,230 +1121,329 @@ async function simplifyDocument(documentId) {
             simplifyBtn.classList.remove('opacity-50', 'cursor-not-allowed');
         }
         
-        // Show error message
+        // Show error message (SweetAlert)
         Swal.fire({
             icon: 'error',
-            title: 'Processing Failed',
-            text: error.message || 'Failed to process document with Gemini AI',
-            confirmButtonColor: '#16a34a'
+            title: isAlreadyProcessed ? 'Loading Failed' : 'Processing Failed', // Conditional title
+            text: error.message || (isAlreadyProcessed ? 'Failed to load simplified document' : 'Failed to process document with Gemini AI'),
+            confirmButtonColor: '#16a34a' // Or your theme color
         });
     }
 }
 
 // Open processed document in modal
-function openProcessedDocument(doc) {
+async function openProcessedDocument(doc) {
+    // Ensure Swal is loaded
+    if (typeof Swal === 'undefined') {
+        console.error("SweetAlert (Swal) is not loaded.");
+        return;
+    }
+    
+    // Ensure marked is loaded for markdown parsing
+    if (typeof marked === 'undefined') {
+        console.error("Marked.js is not loaded.");
+        // Potentially show an error to the user or fallback to plain text
+        return; 
+    }
+
+    // Determine how to display the original document based on file type
+    let originalContentHtml;
+    const isPdf = doc.fileName?.toLowerCase().endsWith('.pdf') || doc.fileType === 'application/pdf';
+    
+    if (isPdf) {
+        // Use object tag for PDFs which provides PDF viewer functionality
+        originalContentHtml = `
+            <object data="${doc.fileUrl}" type="application/pdf" width="100%" height="600">
+                <p>Your browser doesn't support embedded PDFs. 
+                <a href="${doc.fileUrl}" target="_blank">Click here to open the PDF</a>.</p>
+            </object>
+        `;
+    } else {
+        // Use img tag for images
+        originalContentHtml = `<img src="${doc.fileUrl}" alt="Original Document" class="max-w-full h-auto mx-auto">`;
+    }
+
     Swal.fire({
-        title: doc.fileName,
-        width: '80%',
+        title: `<span class="text-xl font-semibold">${doc.fileName}</span>`,
         html: `
-            <div class="mb-4 border-b border-gray-200">
-                <ul class="flex flex-wrap -mb-px text-sm font-medium text-center" role="tablist">
-                    <li class="mr-2" role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-health-500 active" 
-                            id="simplified-tab" data-tabs-target="#simplified-content" type="button" role="tab" 
-                            aria-controls="simplified" aria-selected="true">Simplified</button>
-                    </li>
-                    <li class="mr-2" role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
-                            id="original-tab" data-tabs-target="#original-content" type="button" role="tab" 
-                            aria-controls="original" aria-selected="false">Original</button>
-                    </li>
-                    <li role="presentation">
-                        <button class="inline-block p-4 border-b-2 rounded-t-lg border-transparent hover:border-gray-300"
-                            id="medications-tab" data-tabs-target="#medications-content" type="button" role="tab" 
-                            aria-controls="medications" aria-selected="false">Medications</button>
-                    </li>
-                </ul>
+            <div class="border-b border-gray-200 mb-4">
+                <nav class="-mb-px flex space-x-4 px-4" aria-label="Tabs">
+                    <button id="simplified-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('simplified')">
+                        Simplified
+                    </button>
+                    <button id="original-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('original')">
+                        Original
+                    </button>
+                    <button id="medications-tab" class="tab-button whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm" onclick="switchTab('medications')">
+                        Medications
+                    </button>
+                </nav>
             </div>
-            <div id="tab-content">
-                <div class="block p-4 text-left" id="simplified-content" role="tabpanel" aria-labelledby="simplified-tab">
-                    ${renderMarkdown(doc.processedContent)}
+            <div class="text-left modal-content-area" style="max-height: calc(80vh - 150px); overflow-y: auto;"> 
+                <div id="simplified-content" class="tab-content prose max-w-none p-4"> 
+                    ${doc.processedContent ? marked.parse(doc.processedContent) : '<p>No simplified content available.</p>'}
                 </div>
-                <div class="hidden p-4" id="original-content" role="tabpanel" aria-labelledby="original-tab">
-                    <iframe src="${doc.fileUrl}" width="100%" height="600" class="border"></iframe>
+                <div id="original-content" class="tab-content hidden p-4"> 
+                    ${originalContentHtml}
                 </div>
-                <div class="hidden p-4" id="medications-content" role="tabpanel" aria-labelledby="medications-tab">
+                <div id="medications-content" class="tab-content hidden p-1"> 
                     ${renderMedicationList(doc.medications)}
                 </div>
             </div>
         `,
         showCloseButton: true,
         showConfirmButton: false,
-        focusConfirm: false,
-        didOpen: () => {
-            // Setup tab switching
-            const tabs = document.querySelectorAll('[role="tab"]');
-            const tabContents = document.querySelectorAll('[role="tabpanel"]');
-            
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    // Hide all tab contents
-                    tabContents.forEach(content => {
-                        content.classList.add('hidden');
-                        content.classList.remove('block');
-                    });
-                    
-                    // Remove active class from all tabs
-                    tabs.forEach(t => {
-                        t.classList.remove('border-health-500');
-                        t.classList.add('border-transparent');
-                        t.setAttribute('aria-selected', 'false');
-                    });
-                    
-                    // Show the selected tab content
-                    const target = document.querySelector(tab.dataset.tabsTarget);
-                    target.classList.remove('hidden');
-                    target.classList.add('block');
-                    
-                    // Set active class on selected tab
-                    tab.classList.remove('border-transparent');
-                    tab.classList.add('border-health-500');
-                    tab.setAttribute('aria-selected', 'true');
-                });
-            });
+        width: '90%', // Use percentage for responsiveness
+        customClass: { // Use customClass for more control
+            popup: 'max-w-5xl !overflow-visible', // Set max-width, allow overflow for focus rings etc.
+            htmlContainer: 'overflow-hidden modal-html-container', // Prevent Swal's internal scrollbars, add identifier
+            title: 'pt-5 pr-10 pl-5', // Adjust title padding if needed
+        },
+        didOpen: () => { // Changed from willOpen to didOpen for potentially better timing
+            // Initial tab setup (simplified active)
+            // Add small delay to ensure DOM is fully ready after Swal inserts it
+             setTimeout(() => switchTab('simplified'), 50); 
         }
     });
 }
 
-// Update document selection state
-function updateSelectedCount() {
-    const selectedCount = document.querySelectorAll('.select-doc-checkbox:checked').length;
-    const selectedCountElement = document.getElementById('selected-count');
-    const noSelectionElement = document.getElementById('no-selection');
-    const hasSelectionElement = document.getElementById('has-selection');
-    const createReportButton = document.getElementById('create-report-btn');
-    
-    if (selectedCountElement) {
-        selectedCountElement.textContent = selectedCount;
-    }
-    
-    if (noSelectionElement && hasSelectionElement) {
-        if (selectedCount > 0) {
-            noSelectionElement.classList.add('hidden');
-            hasSelectionElement.classList.remove('hidden');
-            
-            if (createReportButton) {
-                createReportButton.disabled = false;
-                createReportButton.classList.remove('opacity-50', 'cursor-not-allowed');
-            }
-        } else {
-            noSelectionElement.classList.remove('hidden');
-            hasSelectionElement.classList.add('hidden');
-            
-            if (createReportButton) {
-                createReportButton.disabled = true;
-                createReportButton.classList.add('opacity-50', 'cursor-not-allowed');
-            }
-        }
-    }
-}
-
-// Toggle document selection
-async function toggleDocumentSelection(documentId, isSelected) {
-    try {
-        // Update the selection state in the UI immediately
-        updateSelectedCount();
-        
-        // You can optionally save the selection state to localStorage for persistence
-        const selectedDocs = JSON.parse(localStorage.getItem('selectedDocs') || '[]');
-        
-        if (isSelected && !selectedDocs.includes(documentId)) {
-            selectedDocs.push(documentId);
-        } else if (!isSelected && selectedDocs.includes(documentId)) {
-            const index = selectedDocs.indexOf(documentId);
-            if (index > -1) {
-                selectedDocs.splice(index, 1);
-            }
-        }
-        
-        localStorage.setItem('selectedDocs', JSON.stringify(selectedDocs));
-    } catch (error) {
-        console.error('Error updating document selection:', error);
-    }
-}
-
-// Create combined report
-async function createCombinedReport() {
-    // Get selected document IDs
-    const selectedCheckboxes = document.querySelectorAll('.select-doc-checkbox:checked');
-    const documentIds = Array.from(selectedCheckboxes).map(checkbox => checkbox.dataset.id);
-    
-    if (documentIds.length === 0) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'No Documents Selected',
-            text: 'Please select at least one document to create a report.',
-            confirmButtonColor: '#16a34a'
-        });
+// Switch tabs in modal
+function switchTab(tabName) {
+    const modal = Swal.getPopup();
+    if (!modal) {
+        console.error('Modal popup not found for tab switching');
         return;
     }
+
+    // Get all tab buttons and content panes within the specific modal instance
+    const tabButtons = modal.querySelectorAll('.tab-button');
+    const tabContents = modal.querySelectorAll('.tab-content');
+
+    console.log(`Switching tab to: ${tabName}`, { tabButtons, tabContents }); // Debug log
+
+    // Hide all content panes
+                    tabContents.forEach(content => {
+        if (content) content.classList.add('hidden');
+    });
+
+    // Deactivate all tab buttons (reset styles)
+    tabButtons.forEach(button => {
+        if (button) {
+           button.classList.remove('border-indigo-500', 'text-indigo-600');
+           button.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+           button.setAttribute('aria-selected', 'false');
+        }
+    });
+
+    // Activate the selected tab button and show the corresponding content pane
+    const selectedButton = modal.querySelector(`#${tabName}-tab`);
+    const selectedContent = modal.querySelector(`#${tabName}-content`);
+
+    console.log(`Selected button:`, selectedButton);
+    console.log(`Selected content:`, selectedContent);
+
+    if (selectedButton) {
+        selectedButton.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+        selectedButton.classList.add('border-indigo-500', 'text-indigo-600');
+        selectedButton.setAttribute('aria-selected', 'true');
+    } else {
+        console.warn(`Tab button not found for ID: #${tabName}-tab`);
+    }
+
+    if (selectedContent) {
+        selectedContent.classList.remove('hidden');
+    } else {
+        console.warn(`Tab content not found for ID: #${tabName}-content`);
+    }
+}
+
+// Toggle document selection (Handles LOCAL state only now)
+async function toggleDocumentSelection(documentId, isSelected) {
+    console.log(`[Dashboard.js] Toggling local selection for ${documentId} to ${isSelected}`);
+    // Update UI immediately to appear responsive
+    if (isSelected) {
+        selectedDocuments.add(documentId);
+    } else {
+        selectedDocuments.delete(documentId);
+    }
     
-    // Show loading indication
+    // Update UI to show selected document count right away
+    updateSelectedCount();
+}
+
+// Update selected document count
+function updateSelectedCount() {
+    const selectedCount = selectedDocuments.size;
+    
+    // Update selected count display if it exists
+    const selectedCountElem = document.getElementById('selected-count');
+    if (selectedCountElem) {
+        selectedCountElem.textContent = `${selectedCount} selected`;
+    }
+    
+    // Update Create Report button state
     const createReportBtn = document.getElementById('create-report-btn');
-    const originalBtnText = createReportBtn.innerHTML;
-    createReportBtn.disabled = true;
-    createReportBtn.classList.add('opacity-75');
-    createReportBtn.innerHTML = `
-        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        Creating Report...
-    `;
+    if (createReportBtn) {
+        if (selectedCount > 0) {
+            createReportBtn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-health-300', 'hover:bg-health-300');
+            createReportBtn.classList.add('bg-health-600', 'hover:bg-health-700');
+            createReportBtn.removeAttribute('disabled');
+        } else {
+            createReportBtn.classList.add('opacity-50', 'cursor-not-allowed', 'bg-health-300', 'hover:bg-health-300');
+            createReportBtn.classList.remove('bg-health-600', 'hover:bg-health-700');
+            createReportBtn.setAttribute('disabled', 'true');
+        }
+    }
     
+    // Update select-all checkbox state
+    const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    const allDocCheckboxes = document.querySelectorAll('.select-doc-checkbox');
+    if (selectAllCheckbox && allDocCheckboxes.length > 0) {
+        selectAllCheckbox.checked = selectedCount === allDocCheckboxes.length;
+        selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < allDocCheckboxes.length;
+    } else if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false; // No documents, not checked
+        selectAllCheckbox.indeterminate = false;
+    }
+}
+
+// Create a combined report from selected documents
+async function createCombinedReport() {
+    // Ensure `auth` and `Swal` are available
+    if (typeof auth === 'undefined' || !auth.currentUser) {
+        showError("Authentication error. Please log in again.");
+        return;
+    }
+    if (typeof Swal === 'undefined') {
+        showError("UI component (Swal) missing.");
+        return;
+    }
+
     try {
-        // Send request to create report
-        const response = await fetch('/api/documents/create-report', {
+        const selectedIds = Array.from(selectedDocuments); // Use the Set directly
+        
+        if (selectedIds.length === 0) {
+            showError('Please select at least one document to create a report.');
+            return;
+        }
+        
+        // Show loading indicator
+        Swal.fire({
+            title: 'Creating Report',
+            html: 'Generating combined report from selected documents...<br>This may take a minute or two.',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Create the combined report
+        const response = await fetch('/api/documents/combined-report', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ documentIds })
+            body: JSON.stringify({ documentIds: selectedIds }) // Send the IDs from the Set
         });
         
         if (!response.ok) {
-            throw new Error('Failed to create report');
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create combined report');
         }
         
-        const data = await response.json();
+        const result = await response.json();
         
-        if (data.success && data.report) {
-            // Success - clear selection state
-            selectedCheckboxes.forEach(checkbox => {
+        // Close the loading indicator
+        Swal.close();
+        
+        if (result.success) {
+            // If there's a redirect URL, use it for direct navigation
+            if (result.redirectUrl) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created!',
+                    text: 'Your combined report has been created and is ready to view.',
+                    timer: 2000, // Auto-close after 2 seconds
+                    showConfirmButton: false
+                }).then(() => {
+                    // Navigate to the report page
+                    window.location.href = result.redirectUrl;
+                });
+            } else if (result.report && result.report.id) {
+                // If only report ID is returned
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created',
+                    text: 'Your combined report has been created successfully.',
+                    showCancelButton: true,
+                    confirmButtonText: 'View Report',
+                    cancelButtonText: 'Close',
+                    confirmButtonColor: '#15803d', // Your theme color
+                }).then((swalResult) => { // Rename inner variable to avoid conflict
+                    if (swalResult.isConfirmed) {
+                        // Redirect to the report page using the ID from the API response
+                        window.location.href = `/reports/${result.report.id}`;
+                    }
+                });
+            } else {
+                // Fallback if neither report ID nor redirect URL is provided
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Report Created',
+                    text: 'Your combined report has been created. Visit the Reports page to view it.',
+                    confirmButtonText: 'Go to Reports',
+                    confirmButtonColor: '#15803d', // Your theme color
+                }).then(() => {
+                    window.location.href = '/reports'; // Redirect to the general reports list
+                });
+            }
+            
+            // Uncheck all document checkboxes visually
+             const allDocCheckboxes = document.querySelectorAll('.select-doc-checkbox');
+             allDocCheckboxes.forEach(checkbox => {
                 checkbox.checked = false;
             });
             
-            localStorage.removeItem('selectedDocs');
-            updateSelectedCount();
+            // Clear selected documents Set
+            selectedDocuments.clear();
             
-            // Show success message and redirect to the report
-            Swal.fire({
-                icon: 'success',
-                title: 'Report Created',
-                text: 'Your report has been created successfully.',
-                confirmButtonColor: '#16a34a'
-            }).then(() => {
-                // Navigate to the report after a small delay to avoid UI jank
-                setTimeout(() => {
-                    window.location.href = `/reports/${data.report.id}`;
-                }, 100);
-            });
+            // Update selected count and button state
+            updateSelectedCount();
         } else {
-            throw new Error('Invalid response data');
+            throw new Error(result.error || 'Failed to create combined report');
         }
     } catch (error) {
-        console.error('Error creating report:', error);
+        console.error('Error creating combined report:', error); // Log the original error
+        
+         // Close loading Swal if it's still open due to error
+         Swal.close(); 
+
+        // Determine the message to show the user
+        let displayMessage = 'Failed to create combined report. Please try again.'; // Default message
+        if (error.response && typeof error.response.json === 'function') {
+            // If it looks like a fetch response error, try to get the JSON body
+            try {
+                 const errorData = await error.response.json();
+                 if (errorData && errorData.error) {
+                    displayMessage = errorData.error; // Use the error message from the backend API
+                 }
+            } catch (parseError) {
+                 console.error('Could not parse error response JSON:', parseError);
+            }
+        } else if (error.message) {
+             // For other types of errors, use the error message if it doesn't look too technical
+             // Avoid showing raw technical messages like the original Gemini error
+             if (!error.message.includes('GoogleGenerativeAI Error') && !error.message.includes('googleapis.com')) {
+                displayMessage = error.message;
+             }
+        }
+        
         Swal.fire({
             icon: 'error',
-            title: 'Error',
-            text: 'Failed to create report. Please try again later.',
-            confirmButtonColor: '#16a34a'
+            title: 'Report Creation Failed',
+            text: displayMessage, // Show the user-friendly message
+            confirmButtonColor: '#15803d' // Your theme color
         });
-    } finally {
-        // Reset button state
-        createReportBtn.disabled = false;
-        createReportBtn.classList.remove('opacity-75');
-        createReportBtn.innerHTML = originalBtnText;
     }
 }
 
@@ -1004,8 +1453,10 @@ function setupFilters() {
     const typeFilter = document.getElementById('type-filter');
     const statusFilter = document.getElementById('status-filter');
     
-    if (!searchInput || !typeFilter || !statusFilter) {
-        return;
+    // Ensure elements exist before adding listeners
+    if (!searchInput || !typeFilter || !statusFilter || !documentList) {
+        console.warn("Filter elements or document list not found. Skipping filter setup.");
+        return null; // Return null or undefined to indicate failure
     }
     
     const filterDocuments = () => {
@@ -1013,50 +1464,76 @@ function setupFilters() {
         const typeValue = typeFilter.value;
         const statusValue = statusFilter.value;
         
-        const documentItems = documentList.querySelectorAll('div[data-id]');
+        const documentItems = documentList.querySelectorAll('div[data-id]'); // Get all document items
         
         let visibleCount = 0;
         
         documentItems.forEach(item => {
-            const fileName = item.querySelector('h3').textContent.toLowerCase();
-            const isProcessed = item.querySelector('.bg-green-100') !== null;
-            const isProcessing = item.querySelector('.bg-blue-100') !== null;
-            const documentType = item.dataset.type;
+            const fileName = item.querySelector('h3')?.textContent.toLowerCase() || '';
+            const isProcessed = item.querySelector('.bg-green-100') !== null; // Check for processed badge
+            const isProcessing = item.querySelector('.bg-blue-100.processing-indicator') !== null; // Check for processing indicator specifically
+            const documentType = item.dataset.type || 'UNCLASSIFIED';
+            
+            // Check for endorsement/flag statuses from dataset attributes
+            const isEndorsed = item.dataset.endorsed === "true";
+            const isFlagged = item.dataset.flagged === "true";
+            const isPending = item.dataset.pending === "true";
             
             let isVisible = true;
             
-            // Apply search filter
+            // Apply search filter (check filename)
             if (searchTerm && !fileName.includes(searchTerm)) {
                 isVisible = false;
             }
             
             // Apply type filter
-            if (typeValue !== 'all' && documentType !== typeValue) {
+            if (isVisible && typeValue !== 'all' && documentType !== typeValue) {
                 isVisible = false;
             }
             
             // Apply status filter
-            if (statusValue === 'processed' && !isProcessed) {
-                isVisible = false;
-            } else if (statusValue === 'unprocessed' && isProcessed) {
-                isVisible = false;
-            } else if (statusValue === 'processing' && !isProcessing) {
-                isVisible = false;
+            if (isVisible && statusValue !== 'all') {
+                switch(statusValue) {
+                    case 'processed':
+                        if (!isProcessed) isVisible = false;
+                        break;
+                    case 'processing':
+                        if (!isProcessing) isVisible = false;
+                        break;
+                    case 'unprocessed':
+                        if (isProcessed || isProcessing) isVisible = false;
+                        break;
+                    case 'endorsed':
+                        if (!isEndorsed) isVisible = false;
+                        break;
+                    case 'flagged':
+                        if (!isFlagged) isVisible = false;
+                        break;
+                    case 'pending':
+                        if (!isPending) isVisible = false;
+                        break;
+                }
             }
             
             // Show/hide document item
             if (isVisible) {
                 item.classList.remove('hidden');
+                item.style.display = ''; // Reset display style if previously set to none
                 visibleCount++;
             } else {
                 item.classList.add('hidden');
+                item.style.display = 'none'; // Explicitly hide
             }
         });
         
         // Show empty state if no documents match the filters
+        const currentEmptyState = document.getElementById('empty-state'); // Re-get element
+        if (currentEmptyState) {
         if (visibleCount === 0 && documentItems.length > 0) {
-            emptyState.classList.remove('hidden');
-            emptyState.innerHTML = `
+               currentEmptyState.classList.remove('hidden');
+               // Check if reset button already exists to avoid duplicates
+               if (!currentEmptyState.querySelector('#reset-filters')) {
+                   currentEmptyState.innerHTML = `
                 <svg class="w-16 h-16 mx-auto text-gray-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
@@ -1067,15 +1544,22 @@ function setupFilters() {
                 </button>
             `;
             
-            // Add reset button listener
-            document.getElementById('reset-filters').addEventListener('click', () => {
+                   // Add reset button listener inside the condition where it's created
+                   const resetButton = currentEmptyState.querySelector('#reset-filters');
+                   if (resetButton) {
+                      resetButton.addEventListener('click', () => {
                 searchInput.value = '';
                 typeFilter.value = 'all';
                 statusFilter.value = 'all';
-                filterDocuments();
-            });
-        } else if (visibleCount > 0) {
-            emptyState.classList.add('hidden');
+                           filterDocuments(); // Re-apply filters after resetting
+                       });
+                   }
+               }
+           } else if (visibleCount > 0 || documentItems.length === 0) {
+               // Hide empty state if items are visible OR if there were never any items
+               currentEmptyState.classList.add('hidden');
+               currentEmptyState.innerHTML = ''; // Clear previous message
+           }
         }
     };
     
@@ -1084,52 +1568,75 @@ function setupFilters() {
     typeFilter.addEventListener('change', filterDocuments);
     statusFilter.addEventListener('change', filterDocuments);
     
-    // Return the filter function for initial call
+    // Return the filter function so it can be called initially
     return filterDocuments;
 }
 
 // Add filters and batch actions HTML to the page
 function setupFilterUI() {
+    // Ensure documentList exists before trying to insert elements relative to it
+    if (!documentList || !documentList.parentNode) {
+        console.error("Document list container not found. Cannot set up filter UI.");
+        return;
+    }
+
+    // Check if filters/actions already exist to prevent duplicates on hot-reload/navigation
+    if (document.getElementById('type-filter') || document.getElementById('select-all-checkbox')) {
+        console.log("Filter/Action UI already exists. Skipping setup.");
+        return;
+    }
+
     // Add filters section to the page
     const filtersSection = document.createElement('div');
     filtersSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
     filtersSection.innerHTML = `
         <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-3 md:space-y-0">
+             <div class="relative flex-grow md:flex-grow-0 md:mr-4">
+                 <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                     <svg class="w-5 h-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                       <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                     </svg>
+                 </span>
+                 <input type="text" id="search-input" placeholder="Search documents..." class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-health-500 focus:border-health-500 sm:text-sm">
+             </div>
             <div class="flex flex-wrap gap-2">
-                <select id="type-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                <select 
+                    id="type-filter" 
+                    class="appearance-none block w-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 pr-8 rounded-md leading-tight focus:outline-none focus:bg-white focus:border-health-500 focus:ring-1 focus:ring-health-500 shadow-sm text-sm"
+                    style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e\"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.25em;" >
                     <option value="all">All Types</option>
                     <option value="PRESCRIPTION">Prescriptions</option>
                     <option value="LAB_REPORT">Lab Reports</option>
                     <option value="CLINICAL_NOTES">Clinical Notes</option>
                     <option value="INSURANCE">Insurance</option>
                     <option value="MISCELLANEOUS">Miscellaneous</option>
+                    <option value="UNCLASSIFIED">Unclassified</option> 
                 </select>
-                <select id="status-filter" class="rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
+                <select 
+                    id="status-filter" 
+                    class="appearance-none block w-auto bg-white border border-gray-300 text-gray-700 py-2 px-3 pr-8 rounded-md leading-tight focus:outline-none focus:bg-white focus:border-health-500 focus:ring-1 focus:ring-health-500 shadow-sm text-sm"
+                    style="background-image: url(\"data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%236b7280'%3e%3cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd' /%3e%3c/svg%3e\"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.25em;" >
                     <option value="all">All Status</option>
+                    <option value="endorsed">Endorsed</option>
+                    <option value="flagged">Flagged</option>
+                    <option value="pending">Pending Review</option>
                     <option value="processed">Processed</option>
-                    <option value="unprocessed">Unprocessed</option>
                     <option value="processing">Processing</option>
+                    <option value="unprocessed">Unprocessed</option>
                 </select>
-            </div>
-            <div class="relative">
-                <input type="text" id="search-input" placeholder="Search documents..." class="pl-10 rounded-md border-gray-300 shadow-sm focus:border-health-500 focus:ring focus:ring-health-500 focus:ring-opacity-50">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </div>
             </div>
         </div>
     `;
     
     // Add batch actions section
     const batchActionsSection = document.createElement('div');
+    batchActionsSection.id = 'batch-actions-section'; // Give it an ID
     batchActionsSection.className = 'mb-6 p-4 bg-white rounded-lg shadow';
     batchActionsSection.innerHTML = `
         <div class="flex items-center justify-between">
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-3">
                 <input type="checkbox" id="select-all-checkbox" class="h-4 w-4 text-health-600 focus:ring-health-500 border-gray-300 rounded">
-                <label for="select-all-checkbox" class="text-sm text-gray-700">Select All</label>
+                <label for="select-all-checkbox" class="text-sm text-gray-700 select-none">Select All</label>
                 <span class="text-sm text-gray-500">(<span id="selected-count">0</span> selected)</span>
             </div>
             <button id="create-report-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-health-600 hover:bg-health-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-health-500 opacity-50 cursor-not-allowed" disabled>
@@ -1145,24 +1652,138 @@ function setupFilterUI() {
     documentList.parentNode.insertBefore(filtersSection, documentList);
     documentList.parentNode.insertBefore(batchActionsSection, documentList);
     
-    // Setup select all checkbox
+    // Setup select all checkbox listener
     const selectAllCheckbox = document.getElementById('select-all-checkbox');
+    if (selectAllCheckbox) {
     selectAllCheckbox.addEventListener('change', function() {
-        const checkboxes = document.querySelectorAll('.select-doc-checkbox');
-        checkboxes.forEach(checkbox => {
-            checkbox.checked = this.checked;
-            toggleDocumentSelection(checkbox.dataset.id, this.checked);
-        });
+           const isChecked = this.checked;
+           // Select only currently visible documents if filters are applied
+           const visibleCheckboxes = documentList.querySelectorAll('div[data-id]:not(.hidden) .select-doc-checkbox'); 
+           
+           visibleCheckboxes.forEach(checkbox => {
+               if (checkbox.checked !== isChecked) { // Only toggle if state is different
+                  checkbox.checked = isChecked;
+                  // Trigger the toggle function to update the Set and potentially the backend
+                  toggleDocumentSelection(checkbox.dataset.id, isChecked); 
+               }
+           });
+           // Update count after potentially changing multiple selections
         updateSelectedCount();
     });
+    }
     
-    // Setup create report button
+    // Setup create report button listener (already done in initializeDashboardUI, but ensure element exists)
     const createReportBtn = document.getElementById('create-report-btn');
+    if (createReportBtn && !createReportBtn.getAttribute('listener-added')) { // Prevent adding multiple listeners
     createReportBtn.addEventListener('click', createCombinedReport);
+       createReportBtn.setAttribute('listener-added', 'true');
+    }
     
-    // Initialize filters
+    // Initialize filters and get the filter function
     const filterFunc = setupFilters();
+    // Apply initial filtering if the function was returned successfully
     if (filterFunc) {
         filterFunc();
     }
+}
+
+// --- Main Execution Logic ---
+
+// This function contains the core logic that depends on Firebase
+async function startDashboard() {
+    console.log("Firebase initialized, starting dashboard logic.");
+    // Now that Firebase is initialized, get the instances
+    // Use firebase.app().firestore() and firebase.app().auth() for clarity
+    const app = firebase.app(); // Get the default initialized app
+    db = app.firestore();
+    auth = app.auth();
+
+    // Show loading overlay on initial page load
+    if (dashboardLoadingOverlay) {
+        dashboardLoadingOverlay.classList.remove('hidden');
+    }
+
+    // Check if user is authenticated
+    auth.onAuthStateChanged(async function(user) {
+        // Show loading indicator
+        if (navLoadingIndicator) {
+            navLoadingIndicator.style.display = 'inline-block';
+        }
+
+        if (user) {
+            try {
+                // Get the ID token
+                const idToken = await user.getIdToken();
+                
+                // Create a session (optional, depends if backend needs it for every action)
+                // Consider if this fetch is necessary on every auth state change
+                const response = await fetch('/api/session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ idToken })
+                });
+
+                if (!response.ok) {
+                    console.warn('Failed to refresh session:', response.statusText);
+                    // Decide if this is critical. Maybe just log it?
+                    // throw new Error('Failed to create session'); 
+                }
+
+                // User is signed in, load their documents - force skip cache
+                await loadDocuments(true); // Explicitly skip cache to always load fresh data
+                
+                // Initialize UI elements that depend on documents being loaded or auth state
+                initializeDashboardUI(); 
+
+            } catch (error) {
+                console.error('Error during authenticated setup:', error);
+                showError("Error loading your data. Please try refreshing.");
+                // Redirect to login only if session creation is absolutely critical and failed
+                if (error.message.includes('Failed to create session')) {
+                    window.location.href = '/login';
+                }
+                
+                // Hide loading overlay if there's an error
+                if (dashboardLoadingOverlay) {
+                    dashboardLoadingOverlay.classList.add('hidden');
+                }
+            }
+        } else {
+            // User is signed out, redirect to login
+            console.log("User signed out, redirecting to login.");
+            window.location.href = '/login';
+        }
+
+        // Hide loading indicator (might need adjustment based on async operations)
+        if (navLoadingIndicator) {
+            navLoadingIndicator.style.display = 'none';
+        }
+    });
+
+    // Note: initializeDashboardUI() is now called *after* initial loadDocuments within onAuthStateChanged
+    // This ensures UI setup happens after the first data load for an authenticated user.
+}
+
+// Wait for Firebase to be initialized before starting dashboard logic
+// Check if the promise exists first
+if (window.firebaseInitializationPromise) {
+     window.firebaseInitializationPromise
+         .then(startDashboard) // Run the main dashboard logic after Firebase initializes
+         .catch(error => {
+             console.error("Firebase initialization failed:", error);
+             // Display error to the user
+             const errorDiv = document.getElementById('error-message') || document.body; // Fallback
+             errorDiv.textContent = "Application could not initialize due to a Firebase error. Please try refreshing the page.";
+             errorDiv.classList.remove('hidden'); 
+             // Consider disabling UI elements if needed
+         });
+} else {
+     // This case should ideally not happen if scripts load correctly
+     console.error("Firebase initialization promise not found. Ensure firebase-client.js loads before dashboard.js.");
+     // Display a critical error
+     const errorDiv = document.getElementById('error-message') || document.body;
+     errorDiv.textContent = "A critical application file (firebase-client.js) failed to load correctly. Please refresh the page or contact support.";
+     errorDiv.classList.remove('hidden');
 } 

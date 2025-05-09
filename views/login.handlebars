@@ -5,6 +5,18 @@
             <p class="text-gray-600">Sign in to access your medical documents</p>
         </div>
         
+        {{#if forceLogout}}
+        <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">
+            <p class="font-bold">Session Cleared</p>
+            <p>Your session has been forcefully reset due to authentication issues.</p>
+        </div>
+        <input type="hidden" id="force-logout" value="true">
+        {{/if}}
+        
+        {{#if redirectAttempt}}
+        <input type="hidden" id="redirect-attempt" value="{{redirectAttempt}}">
+        {{/if}}
+        
         <form id="login-form">
             <div class="mb-4">
                 <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
@@ -30,7 +42,98 @@
     </div>
 </div>
 
-<script type="module">
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check for force logout and clear everything
+        const forceLogoutElem = document.getElementById('force-logout');
+        if (forceLogoutElem) {
+            console.log('Force logout detected - clearing all authentication state');
+            clearAllAuthState();
+        } else {
+            // Check for redirect loop and clear cached state if detected
+            const redirectAttemptElem = document.getElementById('redirect-attempt');
+            if (redirectAttemptElem && parseInt(redirectAttemptElem.value) > 1) {
+                console.log('Multiple redirects detected, clearing cached state');
+                clearCachedState();
+            }
+        }
+        
+        // More aggressive auth clearing
+        function clearAllAuthState() {
+            try {
+                // Clear session storage
+                sessionStorage.clear();
+                
+                // Clear all firebase and auth related localStorage
+                const authPrefixes = ['firebase:', 'firebaseui:', 'session', 'auth', 'user', 'token'];
+                Object.keys(localStorage).forEach(key => {
+                    for (const prefix of authPrefixes) {
+                        if (key.toLowerCase().includes(prefix)) {
+                            console.log('Clearing storage item:', key);
+                            localStorage.removeItem(key);
+                        }
+                    }
+                });
+                
+                // Clear any service workers that might be caching auth state
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                        for (let registration of registrations) {
+                            registration.unregister();
+                            console.log('Unregistered service worker');
+                        }
+                    });
+                }
+                
+                // Clear browser cache for this site if possible
+                if (window.caches) {
+                    window.caches.keys().then(keyList => {
+                        return Promise.all(keyList.map(key => {
+                            console.log('Clearing cache:', key);
+                            return caches.delete(key);
+                        }));
+                    });
+                }
+                
+                // Clear any IndexedDB databases (Firebase uses these)
+                if (window.indexedDB) {
+                    const databases = indexedDB.databases ? indexedDB.databases() : Promise.resolve([]);
+                    databases.then(dbs => {
+                        dbs.forEach(db => {
+                            console.log('Deleting IndexedDB:', db.name);
+                            indexedDB.deleteDatabase(db.name);
+                        });
+                    }).catch(err => {
+                        console.warn('Error clearing IndexedDB:', err);
+                    });
+                }
+            } catch (e) {
+                console.warn('Error during complete auth clearing:', e);
+            }
+        }
+        
+        // Less aggressive clearing for normal redirect issues
+        const clearCachedState = () => {
+            try {
+                // Clear any persistent data that might interfere with login
+                sessionStorage.clear();
+                
+                // Force clear auth-related localStorage items
+                const authPrefixes = ['firebase:authUser', 'firebase:'];
+                Object.keys(localStorage).forEach(key => {
+                    for (const prefix of authPrefixes) {
+                        if (key.startsWith(prefix)) {
+                            console.log('Clearing cached auth data:', key);
+                            localStorage.removeItem(key);
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('Error clearing cache:', e);
+            }
+        };
+    });
+
     const loginForm = document.getElementById('login-form');
     const errorMessage = document.getElementById('error-message');
     
@@ -40,19 +143,38 @@
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         
+        // Clear any error messages
+        errorMessage.classList.add('hidden');
+        errorMessage.textContent = '';
+        
+        // Disable form to prevent multiple submissions
+        const submitButton = loginForm.querySelector('button[type="submit"]');
+        submitButton.disabled = true;
+        submitButton.textContent = 'Signing in...';
+        
         try {
-            errorMessage.classList.add('hidden');
-            
             // Call the login function from firebase-client.js
+            if (!window.login) {
+                throw new Error('Login functionality not available. Please reload the page.');
+            }
+            
             const result = await window.login(email, password);
             
             if (result && !result.success) {
                 errorMessage.textContent = result.error;
                 errorMessage.classList.remove('hidden');
+                submitButton.disabled = false;
+                submitButton.textContent = 'Sign In';
+            } else if (result && result.success) {
+                // If login was successful, redirect to dashboard
+                window.location.href = '/dashboard';
             }
         } catch (error) {
-            errorMessage.textContent = error.message;
+            console.error('Login error:', error);
+            errorMessage.textContent = error.message || 'An error occurred during login. Please try again.';
             errorMessage.classList.remove('hidden');
+            submitButton.disabled = false;
+            submitButton.textContent = 'Sign In';
         }
     });
 </script>

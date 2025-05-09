@@ -5,7 +5,12 @@ const router = express.Router();
 
 // Home route
 router.get('/', (req, res) => {
-    res.render('home');
+    // Check if there's an authenticated user
+    const hasSession = req.cookies.session ? true : false;
+    res.render('home', { 
+        title: 'RxPlain - Understand Your Medical Documents',
+        hasSession
+    });
 });
 
 // Dashboard route

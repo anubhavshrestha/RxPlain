@@ -1,11 +1,10 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { createWorker } from 'tesseract.js';
-import { fromPath } from 'pdf2pic';
 import { writeFile, unlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { existsSync } from 'fs';
+import * as fs from 'fs';
 
 export class GeminiDocumentProcessor {
     constructor() {
@@ -17,46 +16,62 @@ export class GeminiDocumentProcessor {
         try {
             console.log('Starting document processing with Gemini for file:', file.originalname);
             
-            // Check if file is image format
-            const isImage = ['image/jpeg', 'image/jpg', 'image/png'].includes(file.mimetype);
-            
-            let text = '';
-            let processedResult = null;
-            
-            if (isImage) {
-                // For images, send directly to Gemini
+            // For images, we can send directly to Gemini
+            if (['image/jpeg', 'image/jpg', 'image/png'].includes(file.mimetype)) {
                 console.log('Processing image directly with Gemini API');
                 
                 // Create a Base64 representation of the image
                 const base64Image = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
                 
-                // Process directly with Gemini's multimodal capabilities
-                processedResult = await this.processImageWithGemini(base64Image);
-            } else {
-                // For PDFs and other documents, extract text first
-                text = await this.extractText(file);
-                console.log('Extracted text length:', text ? text.length : 0);
-                console.log('Sample of extracted text:', text ? text.substring(0, 100) + '...' : 'No text extracted');
+                // Process with Gemini's multimodal capabilities
+                const processedResult = await this.processImageWithGemini(base64Image);
                 
-                if (!text) {
-                    console.log('Text extraction failed');
-                    return {
-                        success: false,
-                        error: 'Failed to extract text from document'
-                    };
+                return {
+                    success: true,
+                    content: processedResult.document,
+                    medications: processedResult.medications || [],
+                    documentType: processedResult.documentType
+                };
+            } 
+            // For PDFs, we'll also use Gemini's multimodal capabilities
+            else if (file.mimetype === 'application/pdf') {
+                console.log('Processing PDF with Gemini API');
+                
+                // Save the PDF temporarily
+                const tempPdfPath = join(tmpdir(), `${uuidv4()}.pdf`);
+                await writeFile(tempPdfPath, file.buffer);
+                
+                if (!existsSync(tempPdfPath)) {
+                    throw new Error('Failed to create temporary PDF file');
                 }
-
-                // Process with Gemini
-                console.log('Processing extracted text with Gemini API');
-                processedResult = await this.processWithGemini(text);
+                
+                // Read file as base64
+                const pdfBuffer = await fs.promises.readFile(tempPdfPath);
+                const base64Pdf = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
+                
+                // Process with Gemini (1.5-pro can handle PDFs directly)
+                const processedResult = await this.processPdfWithGemini(base64Pdf);
+                
+                // Clean up the temporary file
+                try {
+                    await unlink(tempPdfPath);
+                } catch (cleanupError) {
+                    console.warn(`Failed to delete temporary PDF: ${cleanupError.message}`);
+                }
+                
+                return {
+                    success: true,
+                    content: processedResult.document,
+                    medications: processedResult.medications || [],
+                    documentType: processedResult.documentType
+                };
             }
-            
-            return {
-                success: true,
-                content: processedResult.document,
-                medications: processedResult.medications || [],
-                documentType: processedResult.documentType
-            };
+            else {
+                return {
+                    success: false,
+                    error: 'Unsupported file type. Only PDF, JPG, and PNG files are supported.'
+                };
+            }
         } catch (error) {
             console.error('Error processing document with Gemini:', error);
             return {
@@ -66,132 +81,51 @@ export class GeminiDocumentProcessor {
         }
     }
 
-    async extractText(file) {
-        const mimeType = file.mimetype;
-
-        if (mimeType === 'application/pdf') {
-            try {
-                // Create a temporary file to store the PDF
-                const tempPdfPath = join(tmpdir(), `${uuidv4()}.pdf`);
-                await writeFile(tempPdfPath, file.buffer);
-
-                // Verify the file was created and has content
-                if (!existsSync(tempPdfPath)) {
-                    throw new Error('Failed to create temporary PDF file');
-                }
-
-                // Configure pdf2pic
-                const options = {
-                    density: 300,           // Higher density for better quality
-                    saveFilename: "page",   // Output filename
-                    savePath: tmpdir(),     // Save in temp directory
-                    format: "png",          // Output format
-                    width: 2480,            // A4 size at 300 DPI
-                    height: 3508           // A4 size at 300 DPI
-                };
-
-                // Convert PDF to images
-                const convert = fromPath(tempPdfPath, options);
-                const pageToImage = await convert.bulk(-1); // Convert all pages
-
-                // Extract text from each image
-                let fullText = '';
-                const worker = await createWorker();
-                
-                for (const page of pageToImage) {
-                    try {
-                        // Verify the image file exists
-                        if (!existsSync(page.path)) {
-                            console.warn(`Image file not found: ${page.path}`);
-                            continue;
-                        }
-                        
-                        // Use path instead of buffer for files on disk
-                        const result = await worker.recognize(page.path);
-                        fullText += result.text + '\n';
-                        
-                        // Clean up the temporary image file
-                        try {
-                            if (existsSync(page.path)) {
-                                await unlink(page.path);
-                            }
-                        } catch (cleanupError) {
-                            console.warn(`Failed to delete temporary image: ${cleanupError.message}`);
-                        }
-                    } catch (pageError) {
-                        console.error(`Error processing page: ${pageError.message}`);
-                    }
-                }
-
-                await worker.terminate();
-                
-                // Clean up the temporary PDF file
-                try {
-                    if (existsSync(tempPdfPath)) {
-                        await unlink(tempPdfPath);
-                    }
-                } catch (cleanupError) {
-                    console.warn(`Failed to delete temporary PDF: ${cleanupError.message}`);
-                }
-                
-                return fullText.trim();
-            } catch (error) {
-                console.error('Error extracting text from PDF:', error);
-                throw new Error(`Failed to extract text from PDF: ${error.message}`);
-            }
-        } 
-        else if (['image/jpeg', 'image/jpg', 'image/png'].includes(mimeType)) {
-            try {
-                // Save buffer to temporary file for more reliable processing
-                const tempImgPath = join(tmpdir(), `${uuidv4()}.${mimeType.split('/')[1]}`);
-                await writeFile(tempImgPath, file.buffer);
-                
-                // Verify the file was created
-                if (!existsSync(tempImgPath)) {
-                    throw new Error('Failed to create temporary image file');
-                }
-                
-                const worker = await createWorker();
-                const result = await worker.recognize(tempImgPath);
-                await worker.terminate();
-                
-                // Clean up
-                try {
-                    if (existsSync(tempImgPath)) {
-                        await unlink(tempImgPath);
-                    }
-                } catch (cleanupError) {
-                    console.warn(`Failed to delete temporary image: ${cleanupError.message}`);
-                }
-                
-                return result.text;
-            } catch (error) {
-                console.error('Error extracting text from image:', error);
-                throw new Error(`Failed to extract text from image: ${error.message}`);
-            }
-        }
-        
-        throw new Error('Unsupported file type');
-    }
-
-    async processWithGemini(text) {
+    async processPdfWithGemini(base64Pdf) {
         try {
-            // Prompt for document classification
-            const classifyPrompt = `
-                Analyze the following medical document text and classify it into exactly ONE of these categories:
-                - PRESCRIPTION: Any document containing medication orders, prescriptions, or pharmacy instructions
-                - LAB_REPORT: Any document with laboratory test results, diagnostics, or medical measurements
-                - INSURANCE: Insurance cards, insurance claims, coverage documents, or EOBs
-                - CLINICAL_NOTES: Doctor's notes, visit summaries, discharge summaries, or general medical notes
-                - MISCELLANEOUS: Any medical document that doesn't fit in the categories above
+            // Create a content part for the PDF
+            const pdfPart = {
+                inlineData: {
+                    data: base64Pdf.split(',')[1],
+                    mimeType: 'application/pdf'
+                }
+            };
+            
+            // Prompts for PDF processing
+            const classifyPrompt = "Analyze this medical document PDF and classify it into exactly ONE of these categories: PRESCRIPTION, LAB_REPORT, INSURANCE, CLINICAL_NOTES, MISCELLANEOUS. Return ONLY the category name without any additional text or explanation.";
+            
+            const contentPrompt = "Simplify this medical document for a patient with no medical background. Transform complex medical information into clear, actionable insights anyone can understand. Format your response with these sections: # What This Means For You, # Key Actions, # Important Information, # Health Terms Simplified. Write at a 6th-grade reading level with short sentences and simple words. Focus on practical information, not technical details.";
+            
+            // Prompt for medication extraction
+            const medPrompt = `
+                Extract a comprehensive list of ALL medications visible in this medical document.
+                For each medication, provide the following information as a JSON object:
                 
-                Return ONLY the category name without any additional text or explanation.
-                
-                The document content is:
-                ${text}
+                1.  Name: An object containing:
+                    *   Generic: The generic name (e.g., "Metformin"). Provide null if not found.
+                    *   Brand: The brand name (e.g., "Glucophage"). Provide null if not found.
+                2.  SuggestedName: IF AND ONLY IF both Generic and Brand names are null, provide a short, descriptive fallback name based on the medication's apparent use or type (e.g., "Pain Reliever", "Blood Pressure Pill", "Iron Supplement"). Otherwise, this field should be null or omitted.
+                3.  Dosage: Dosage strength and form (e.g., "500mg tablet", "1 spray"). Provide null if not found.
+                4.  Frequency: How often to take it (e.g., "Once daily", "Twice a day"). Provide null if not found.
+                5.  Purpose: Briefly explain what symptom or condition it treats in patient-friendly terms. Provide null if not found.
+                6.  Special Instructions: Extract any specific instructions like "Take with food", "Avoid alcohol", in simple language. 
+                    *   If instructions are found in the document: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific instructions ARE NOT found in the document: Check your general knowledge for this medication. If common/important standard instructions exist (e.g., "Take levothyroxine on an empty stomach"), provide them as a string AND add a field "isGeneralKnowledgeInstructions: true". 
+                    *   Otherwise, provide null.
+                7.  Important Side Effects: List serious or common side effects/warnings mentioned in the document.
+                    *   If side effects/warnings are found in the document: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific side effects/warnings ARE NOT found in the document: Check your general knowledge for this medication. If well-known common or important side effects exist (e.g., "Metformin may cause digestive upset"), list 1-3 key ones as a string AND add a field "isGeneralKnowledgeSideEffects: true".
+                    *   Otherwise, provide null.
+
+                Format the final output strictly as a JSON array containing these medication objects. Ensure all fields (e.g., "isGeneralKnowledgeInstructions") are included, set to "true" or "false"/"null" as appropriate.
+                Make sure the output is ONLY the JSON array and nothing else before or after it.
             `;
             
-            const classifyResult = await this.model.generateContent(classifyPrompt);
+            // Get document type
+            const classifyResult = await this.model.generateContent([
+                classifyPrompt,
+                pdfPart
+            ]);
             const documentType = classifyResult.response.text().trim().toUpperCase();
             console.log('Document classified as:', documentType);
             
@@ -199,82 +133,18 @@ export class GeminiDocumentProcessor {
             const validTypes = ['PRESCRIPTION', 'LAB_REPORT', 'INSURANCE', 'CLINICAL_NOTES', 'MISCELLANEOUS'];
             const docType = validTypes.includes(documentType) ? documentType : 'MISCELLANEOUS';
             
-            // Prompt for document simplification with markdown output - improved for better patient understanding
-            const docPrompt = `
-                Simplify this medical document for a patient with no medical background. Your goal is to transform complex medical information into clear, actionable insights that anyone can understand.
-                
-                This document has been classified as: ${docType}
-                
-                Format your response in clean, well-structured markdown with these patient-friendly sections:
-                
-                # What This Means For You
-                [Provide a clear, simple explanation of what this document means for the patient's health in 2-3 sentences. Focus on the practical implications.]
-                
-                # Key Actions
-                [List specific, concrete actions the patient should take as bullet points. Be direct and practical. Include medication instructions, lifestyle changes, follow-up appointments, etc.]
-                
-                # Important Information
-                [Explain ONLY the most crucial details a patient needs to understand in short paragraphs with appropriate spacing. Focus on what affects them directly. Avoid medical jargon completely, or if necessary, define it in everyday language.]
-                
-                # Health Terms Simplified
-                [Translate ONLY the essential medical terms that appear in the document into simple, everyday language a 12-year-old could understand. Format as a bulleted list with the term in bold followed by the simple explanation.]
-                
-                # Recommendations
-                [Provide 3-5 specific, actionable recommendations related to this medical document. These should be practical suggestions that help the patient understand what to do next.]
-                
-                Remember:
-                - Write at a 6th-grade reading level maximum
-                - Use short sentences and simple words
-                - Add proper spacing between paragraphs
-                - Include subheadings where appropriate
-                - Explain WHY things matter to the patient
-                - Focus on practical information, not technical details
-                - Be reassuring but honest
-                - Use bulleted lists for better readability
-                
-                The document content is:
-                ${text}
-            `;
+            // Get content
+            const contentResult = await this.model.generateContent([
+                `This is a medical document classified as: ${docType}. ${contentPrompt}`,
+                pdfPart
+            ]);
+            const docMarkdown = contentResult.response.text();
             
-            const docResult = await this.model.generateContent(docPrompt);
-            const docMarkdown = docResult.response.text();
-            
-            // Prompt for medication extraction - improved for better structured data
-            const medPrompt = `
-                Extract ALL medications mentioned in this medical document and format them as a structured list.
-                
-                For each medication, provide these fields:
-                1. name: The full medication name (required - both brand and generic if available)
-                2. dosage: The amount/strength/dose (if mentioned)
-                3. frequency: How often to take it (if mentioned)
-                4. purpose: What condition or symptom it treats, in patient-friendly terms (if mentioned)
-                5. instructions: Special directions in simple language (if mentioned)
-                6. warnings: Important side effects to watch for - only common or serious ones (if mentioned)
-                
-                Format your response as a JSON array of medication objects with these exact property names. Example:
-                [
-                  {
-                    "name": "Lisinopril",
-                    "dosage": "10mg",
-                    "frequency": "Once daily",
-                    "purpose": "To lower blood pressure",
-                    "instructions": "Take in the morning with or without food",
-                    "warnings": "May cause dizziness, especially when standing up quickly"
-                  }
-                ]
-                
-                Important:
-                - Every medication MUST have a name field
-                - Only include medications that are clearly prescribed or recommended
-                - Return an empty array [] if no medications are found
-                - Ensure the response is valid JSON that can be parsed
-                - Do not include any text before or after the JSON array
-                
-                The medical document content is:
-                ${text}
-            `;
-            
-            const medResult = await this.model.generateContent(medPrompt);
+            // Get medications
+            const medResult = await this.model.generateContent([
+                medPrompt,
+                pdfPart
+            ]);
             let medications = [];
             
             try {
@@ -284,19 +154,6 @@ export class GeminiDocumentProcessor {
                 const jsonMatch = medText.match(/\[[\s\S]*\]/);
                 if (jsonMatch) {
                     medications = JSON.parse(jsonMatch[0]);
-                    
-                    // Filter out any medications without a name
-                    medications = medications.filter(med => med.name && med.name.trim() !== '');
-                    
-                    // Ensure all medications have the required fields
-                    medications = medications.map(med => ({
-                        name: med.name || 'Unknown Medication',
-                        dosage: med.dosage || '',
-                        frequency: med.frequency || '',
-                        purpose: med.purpose || '',
-                        instructions: med.instructions || '',
-                        warnings: med.warnings || ''
-                    }));
                 } else {
                     console.warn('No JSON array found in medication response');
                     medications = [];
@@ -307,8 +164,7 @@ export class GeminiDocumentProcessor {
                     medications = [];
                 }
             } catch (parseError) {
-                console.error('Failed to parse medications JSON:', parseError);
-                console.error('Raw medication text:', medResult.response.text());
+                console.warn('Failed to parse medications JSON:', parseError);
                 medications = [];
             }
             
@@ -318,8 +174,8 @@ export class GeminiDocumentProcessor {
                 documentType: docType
             };
         } catch (error) {
-            console.error('Error with Gemini API:', error);
-            throw new Error(`Failed to process with Gemini: ${error.message}`);
+            console.error('Error processing PDF with Gemini:', error);
+            throw new Error(`Failed to process PDF with Gemini: ${error.message}`);
         }
     }
 
@@ -338,7 +194,30 @@ export class GeminiDocumentProcessor {
             
             const contentPrompt = "Simplify this medical document for a patient with no medical background. Transform complex medical information into clear, actionable insights anyone can understand. Format your response with these sections: # What This Means For You, # Key Actions, # Important Information, # Health Terms Simplified. Write at a 6th-grade reading level with short sentences and simple words. Focus on practical information, not technical details.";
             
-            const medPrompt = "Extract a list of ALL medications visible in this medical document image. For each medication, provide: Name (brand and generic if available), Dosage, Frequency, Purpose (in patient-friendly terms), Special instructions in simple language, Important side effects to watch for (only common or serious ones). Format as a JSON array. Focus on making information practical and understandable to someone with no medical background.";
+            // Prompt for medication extraction
+            const medPrompt = `
+                Extract a comprehensive list of ALL medications visible in this medical document image.
+                For each medication, provide the following information as a JSON object:
+                
+                1.  Name: An object containing:
+                    *   Generic: The generic name (e.g., "Metformin"). Provide null if not found.
+                    *   Brand: The brand name (e.g., "Glucophage"). Provide null if not found.
+                2.  SuggestedName: IF AND ONLY IF both Generic and Brand names are null, provide a short, descriptive fallback name based on the medication's apparent use or type (e.g., "Pain Reliever", "Blood Pressure Pill", "Iron Supplement"). Otherwise, this field should be null or omitted.
+                3.  Dosage: Dosage strength and form (e.g., "500mg tablet", "1 spray"). Provide null if not found.
+                4.  Frequency: How often to take it (e.g., "Once daily", "Twice a day"). Provide null if not found.
+                5.  Purpose: Briefly explain what symptom or condition it treats in patient-friendly terms. Provide null if not found.
+                6.  Special Instructions: Extract any specific instructions like "Take with food", "Avoid alcohol", in simple language. 
+                    *   If instructions are found in the image: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific instructions ARE NOT found in the image: Check your general knowledge for this medication. If common/important standard instructions exist (e.g., "Take levothyroxine on an empty stomach"), provide them as a string AND add a field "isGeneralKnowledgeInstructions: true". 
+                    *   Otherwise, provide null.
+                7.  Important Side Effects: List serious or common side effects/warnings mentioned in the image.
+                    *   If side effects/warnings are found in the image: Provide them as a string.
+                    *   If a medication Name (Generic/Brand/Suggested) IS identified BUT specific side effects/warnings ARE NOT found in the image: Check your general knowledge for this medication. If well-known common or important side effects exist (e.g., "Metformin may cause digestive upset"), list 1-3 key ones as a string AND add a field "isGeneralKnowledgeSideEffects: true".
+                    *   Otherwise, provide null.
+
+                Format the final output strictly as a JSON array containing these medication objects. Ensure all fields (e.g., "isGeneralKnowledgeInstructions") are included, set to "true" or "false"/"null" as appropriate.
+                Make sure the output is ONLY the JSON array and nothing else before or after it.
+            `;
             
             // Get document type
             const classifyResult = await this.model.generateContent([

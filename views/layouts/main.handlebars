@@ -10,6 +10,14 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <!-- Add Marked.js for Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <!-- Firebase SDKs (Moved to Head) -->
+    <script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script defer src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <!-- Firebase Client Initialization (Defer ensures it runs after DOM parsing and in order) -->
+    <script defer src="/js/firebase-client.js"></script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -85,11 +93,20 @@
                     <a href="/login" class="mr-4 hover:underline">Login</a>
                     <a href="/register" class="hover:underline">Register</a>
                 </span>
-                <!-- Logged in navigation -->
-                <span id="logged-in-nav" class="logged-in hidden">
-                    <a href="/dashboard" class="mr-4 hover:underline">Dashboard</a>
-                    <a href="/profile" class="mr-4 hover:underline">Profile</a>
-                    <button onclick="window.logout()" class="hover:underline">Logout</button>
+                <!-- Logged in navigation - Patient -->
+                <span id="patient-nav" class="logged-in patient-nav hidden">
+                    <a href="/dashboard" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="/reports" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Reports</a>
+                    <a href="/medications" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Medications</a>
+                    <a href="/medication-schedules" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Schedules</a>
+                    <a href="/profile" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Profile</a>
+                    <button onclick="window.logout()" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Logout</button>
+                </span>
+                <!-- Logged in navigation - Doctor -->
+                <span id="doctor-nav" class="logged-in doctor-nav hidden">
+                    <a href="/dashboard" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Dashboard</a>
+                    <a href="/profile" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Profile</a>
+                    <button onclick="window.logout()" class="text-gray-300 hover:bg-health-700 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Logout</button>
                 </span>
             </div>
         </div>
@@ -119,8 +136,10 @@
     </footer>
 
     <!-- Firebase SDKs -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js"></script>
-    <script type="module" src="/js/firebase-client.js"></script>
+    <!-- MOVED TO HEAD -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script> -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script> -->
+    <!-- <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script> -->
+    <!-- <script src="/js/firebase-client.js"></script> -->
 </body>
 </html>

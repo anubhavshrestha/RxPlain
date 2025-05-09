@@ -8,6 +8,36 @@
     </div>
   </div>
 
+  {{!-- Connection Requests Section --}}
+  <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">Patient Connection Requests</h2>
+    <div id="connection-requests" class="space-y-4">
+      {{!-- Connection requests will be loaded here --}}
+      <div id="loading-requests" class="text-center py-6 text-gray-500">
+        <svg class="w-8 h-8 mx-auto text-gray-300 animate-spin mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p>Loading connection requests...</p>
+      </div>
+    </div>
+  </div>
+
+  {{!-- My Patients Section --}}
+  <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+    <h2 class="text-xl font-semibold mb-4">My Patients</h2>
+    <div id="my-patients" class="space-y-4">
+      {{!-- Connected patients will be loaded here --}}
+      <div id="loading-patients" class="text-center py-6 text-gray-500">
+        <svg class="w-8 h-8 mx-auto text-gray-300 animate-spin mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p>Loading patients...</p>
+      </div>
+    </div>
+  </div>
+
   {{!-- Search Patients Section --}}
   <div class="bg-white rounded-lg shadow-md p-6 mb-8">
     <h2 class="text-xl font-semibold mb-4">Search Patients</h2>
@@ -27,6 +57,39 @@
     <h2 class="text-xl font-semibold mb-4">Patient Documents</h2>
     <div id="patientDocuments" class="space-y-4">
       {{!-- Documents will be loaded here --}}
+    </div>
+  </div>
+
+  <!-- Add modal for endorse/flag actions -->
+  <div id="modal-bg" class="fixed inset-0 bg-black bg-opacity-50 hidden z-40"></div>
+  <div id="endorse-flag-modal" class="fixed inset-0 flex items-center justify-center hidden z-50">
+    <div class="bg-white rounded-lg p-6 m-4 max-w-lg w-full">
+      <div class="flex justify-between items-center mb-4">
+        <h2 id="modal-title" class="text-xl font-semibold">Endorse Document</h2>
+        <button id="modal-close" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-6 h-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <p class="mb-4 text-gray-600">Please provide a brief note regarding your assessment:</p>
+      <textarea id="modal-note" class="w-full p-3 border border-gray-300 rounded h-32 mb-4" placeholder="Enter your professional note..."></textarea>
+      <input type="hidden" id="current-doc-id" value="">
+      <input type="hidden" id="current-action" value="">
+      <div class="flex justify-end">
+        <button id="modal-cancel" class="inline-flex items-center px-4 py-2 bg-gray-200 text-gray-800 rounded mr-3 hover:bg-gray-300">
+          <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+          Cancel
+        </button>
+        <button id="modal-submit" class="inline-flex items-center px-4 py-2 bg-health-600 text-white rounded hover:bg-health-700">
+          <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          Submit
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -73,40 +136,181 @@ async function searchPatients() {
 // Function to view patient documents
 async function viewPatientDocuments(patientId) {
   try {
-    const response = await fetch(`/api/documents/patient/${patientId}`);
-    const documents = await response.json();
+    // Check if we have a valid patientId
+    if (!patientId) {
+      throw new Error('Invalid patient ID');
+    }
     
     const documentsDiv = document.getElementById('patientDocuments');
-    documentsDiv.innerHTML = '';
+    // Show loading indicator
+    documentsDiv.innerHTML = `
+      <div class="text-center py-6 text-gray-500">
+        <svg class="w-8 h-8 mx-auto text-gray-300 animate-spin mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p>Loading documents...</p>
+      </div>
+    `;
     
-    if (documents.length === 0) {
-      documentsDiv.innerHTML = '<p class="text-gray-500">No documents available</p>';
+    // Store the patient ID for reference when refreshing
+    documentsDiv.dataset.patientId = patientId;
+    
+    // Make API call to get documents
+    const response = await fetch(`/api/documents/${patientId}/patient-documents`);
+    
+    // Check if response is OK before trying to parse JSON
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+    }
+    
+    const responseText = await response.text();
+    
+    // Try to parse the response as JSON (handle case where HTML is returned instead)
+    let documents;
+    try {
+      documents = JSON.parse(responseText);
+    } catch (error) {
+      console.error('Response is not valid JSON:', responseText.substring(0, 100) + '...');
+      throw new Error('Server returned invalid data format');
+    }
+    
+    if (!documents || documents.length === 0) {
+      documentsDiv.innerHTML = '<p class="text-gray-500">No documents available for this patient</p>';
       return;
     }
     
+    // Clear the container and add each document
+    documentsDiv.innerHTML = '';
+    
     documents.forEach(doc => {
       const docCard = document.createElement('div');
-      docCard.className = 'bg-gray-50 p-4 rounded';
+      docCard.className = 'bg-white shadow-sm rounded-lg border border-gray-100 p-5 mb-4 hover:shadow-md transition-shadow duration-200';
+      
+      // Status indicators for quick view
+      let statusBadges = '';
+      let mostRecentStatus = 'unprocessed';
+      let mostRecentTimestamp = 0;
+      
+      // Determine the most recent status based on timestamp comparison
+      if (doc.endorsedBy && doc.endorsedBy.timestamp) {
+        const endorseTimestamp = new Date(doc.endorsedBy.timestamp).getTime();
+        if (endorseTimestamp > mostRecentTimestamp) {
+          mostRecentStatus = 'endorsed';
+          mostRecentTimestamp = endorseTimestamp;
+        }
+      }
+      
+      if (doc.flaggedBy && doc.flaggedBy.timestamp) {
+        const flagTimestamp = new Date(doc.flaggedBy.timestamp).getTime();
+        if (flagTimestamp > mostRecentTimestamp) {
+          mostRecentStatus = 'flagged';
+          mostRecentTimestamp = flagTimestamp;
+        }
+      }
+      
+      // Generate badge based on most recent status
+      if (mostRecentStatus === 'endorsed') {
+        statusBadges = `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 mr-2">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Endorsed
+          </span>
+        `;
+      } else if (mostRecentStatus === 'flagged') {
+        statusBadges = `
+          <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            <svg class="w-3.5 h-3.5 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Flagged
+          </span>
+        `;
+      }
+      
+      // Detailed doctor feedback sections
+      let doctorFeedback = '';
+      
+      // Show feedback based on most recent status only
+      if (mostRecentStatus === 'endorsed' && doc.endorsedBy) {
+        const endorseDate = new Date(doc.endorsedBy.timestamp).toLocaleDateString();
+        doctorFeedback = `
+          <div class="mt-3 bg-green-50 rounded-lg p-3 border border-green-100">
+            <div class="flex items-start">
+              <svg class="w-5 h-5 mr-2 text-green-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <div class="flex items-center text-sm text-green-700">
+                  <span class="font-medium">Endorsed by Dr. ${doc.endorsedBy.displayName}</span>
+                  <span class="mx-1">•</span>
+                  <span>${endorseDate}</span>
+                </div>
+                ${doc.endorsedBy.note ? `<p class="text-sm mt-1 text-gray-700">${doc.endorsedBy.note}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      } else if (mostRecentStatus === 'flagged' && doc.flaggedBy) {
+        const flagDate = new Date(doc.flaggedBy.timestamp).toLocaleDateString();
+        doctorFeedback = `
+          <div class="mt-3 bg-yellow-50 rounded-lg p-3 border border-yellow-100">
+            <div class="flex items-start">
+              <svg class="w-5 h-5 mr-2 text-yellow-500 flex-shrink-0 mt-0.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <div>
+                <div class="flex items-center text-sm text-yellow-700">
+                  <span class="font-medium">Flagged by Dr. ${doc.flaggedBy.displayName}</span>
+                  <span class="mx-1">•</span>
+                  <span>${flagDate}</span>
+                </div>
+                ${doc.flaggedBy.note ? `<p class="text-sm mt-1 text-gray-700">${doc.flaggedBy.note}</p>` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+      
       docCard.innerHTML = `
         <div class="flex justify-between items-start">
           <div>
-            <h3 class="font-semibold">${doc.originalName}</h3>
-            <p class="text-sm text-gray-600">Uploaded: ${new Date(doc.uploadedAt).toLocaleDateString()}</p>
-            <p class="text-sm text-gray-600">Type: ${doc.type}</p>
+            <div class="flex items-center">
+              <h3 class="font-semibold text-lg text-gray-900">${doc.fileName || doc.originalName || 'Unnamed document'}</h3>
+              <div class="ml-2">
+                ${statusBadges}
+              </div>
+            </div>
+            <p class="text-sm text-gray-600 mt-1">Uploaded: ${doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : new Date(doc.createdAt).toLocaleDateString()}</p>
+            <p class="text-sm text-gray-600">Type: ${doc.type || doc.fileType || 'Unknown type'}</p>
+            
+            ${doctorFeedback}
           </div>
+          
           <div class="flex space-x-2">
             <button onclick="viewDocument('${doc.id}')" 
-                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
-              View
+                    class="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full" title="View Document">
+              <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
             </button>
-            <button onclick="endorseDocument('${doc.id}')" 
-                    class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">
-              Endorse
-            </button>
-            <button onclick="flagDocument('${doc.id}')" 
-                    class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded">
-              Flag
-            </button>
+            ${mostRecentStatus !== 'endorsed' && mostRecentStatus !== 'flagged' ? `
+              <button onclick="endorseDocument('${doc.id}')" 
+                      class="bg-green-500 hover:bg-green-600 text-white p-2 rounded-full" title="Endorse Document">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
+              <button onclick="flagDocument('${doc.id}')" 
+                      class="bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full" title="Flag Document">
+                <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </button>
+            ` : ''}
           </div>
         </div>
       `;
@@ -114,52 +318,181 @@ async function viewPatientDocuments(patientId) {
     });
   } catch (error) {
     console.error('Error fetching patient documents:', error);
-    alert('Error loading documents. Please try again.');
+    document.getElementById('patientDocuments').innerHTML = `
+      <div class="text-center py-6 text-red-500">
+        <p>Error loading documents: ${error.message}</p>
+        <p class="text-sm mt-2">Please try again or contact support if the problem persists.</p>
+      </div>
+    `;
   }
 }
 
 // Function to view a document
 async function viewDocument(docId) {
   try {
-    const response = await fetch(`/api/documents/${docId}`);
-    const doc = await response.json();
-    window.open(doc.url, '_blank');
+    window.location.href = `/documents/${docId}`;
   } catch (error) {
     console.error('Error viewing document:', error);
-    alert('Error viewing document. Please try again.');
+    alert(`Error viewing document: ${error.message}`);
   }
 }
 
 // Function to endorse a document
-async function endorseDocument(docId) {
-  try {
-    const response = await fetch(`/api/documents/${docId}/endorse`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (response.ok) {
-      alert('Document endorsed successfully');
-      // Refresh the documents list
-      const patientId = document.querySelector('#patientDocuments').dataset.patientId;
-      if (patientId) {
-        viewPatientDocuments(patientId);
-      }
-    } else {
-      throw new Error('Failed to endorse document');
-    }
-  } catch (error) {
-    console.error('Error endorsing document:', error);
-    alert('Error endorsing document. Please try again.');
-  }
+function endorseDocument(docId) {
+  openModal('endorse', docId);
 }
 
 // Function to flag a document
-async function flagDocument(docId) {
+function flagDocument(docId) {
+  openModal('flag', docId);
+}
+
+// Modal management
+const modalBg = document.getElementById('modal-bg');
+const modal = document.getElementById('endorse-flag-modal');
+const modalTitle = document.getElementById('modal-title');
+const modalNote = document.getElementById('modal-note');
+const modalCancel = document.getElementById('modal-cancel');
+const modalClose = document.getElementById('modal-close');
+const modalSubmit = document.getElementById('modal-submit');
+const currentDocId = document.getElementById('current-doc-id');
+const currentAction = document.getElementById('current-action');
+
+function openModal(action, docId) {
+  currentAction.value = action;
+  currentDocId.value = docId;
+  modalTitle.textContent = action === 'endorse' ? 'Endorse Document' : 'Flag Document';
+  modalNote.value = '';
+  modal.classList.remove('hidden');
+  modalBg.classList.remove('hidden');
+  modalNote.focus();
+}
+
+function closeModal() {
+  modal.classList.add('hidden');
+  modalBg.classList.add('hidden');
+  currentAction.value = '';
+  currentDocId.value = '';
+}
+
+modalCancel.onclick = closeModal;
+modalBg.onclick = closeModal;
+modalClose.onclick = closeModal;
+
+modalSubmit.onclick = async function() {
+  const note = modalNote.value.trim();
+  if (!note) {
+    modalNote.classList.add('border-red-500');
+    modalNote.placeholder = 'Note is required!';
+    return;
+  }
+  
+  modalNote.classList.remove('border-red-500');
+  const docId = currentDocId.value;
+  const action = currentAction.value;
+  
   try {
-    const response = await fetch(`/api/documents/${docId}/flag`, {
+    const response = await fetch(`/api/documents/${docId}/${action}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ note })
+    });
+    
+    if (response.ok) {
+      closeModal();
+      
+      // Show success message
+      const actionText = action === 'endorse' ? 'endorsed' : 'flagged';
+      alert(`Document ${actionText} successfully`);
+      
+      // Refresh the documents list
+      const patientId = document.querySelector('#patientDocuments').dataset.patientId;
+      if (patientId) {
+        viewPatientDocuments(patientId);
+      }
+    } else {
+      const errorData = await response.json();
+      alert(`Error: ${errorData.error || `Failed to ${action} document`}`);
+    }
+  } catch (error) {
+    console.error(`Error ${action}ing document:`, error);
+    alert(`Error ${action}ing document. Please try again.`);
+  }
+};
+
+// Load connection requests when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+  loadConnectionRequests();
+  loadConnectedPatients();
+});
+
+// Function to load connection requests
+async function loadConnectionRequests() {
+  try {
+    const requestsContainer = document.getElementById('connection-requests');
+    const loadingElement = document.getElementById('loading-requests');
+    
+    const response = await fetch('/api/users/connections/requests');
+    const data = await response.json();
+    
+    // Clear the container
+    requestsContainer.innerHTML = '';
+    
+    // Get incoming requests (for doctor)
+    const incomingRequests = data.incomingRequests || [];
+    
+    if (incomingRequests.length === 0) {
+      requestsContainer.innerHTML = `
+        <div class="text-center py-6 text-gray-500">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+          </svg>
+          <p>No pending connection requests</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Add incoming requests
+    incomingRequests.forEach(request => {
+      const requestCard = document.createElement('div');
+      requestCard.className = 'bg-gray-50 p-4 rounded mb-2';
+      requestCard.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-semibold">${request.senderName}</h3>
+            <p class="text-sm text-gray-600">Request received: ${new Date(request.createdAt).toLocaleDateString()}</p>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="acceptConnectionRequest('${request.id}')" 
+                    class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+              Accept
+            </button>
+            <button onclick="rejectConnectionRequest('${request.id}')" 
+                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
+              Decline
+            </button>
+          </div>
+        </div>
+      `;
+      requestsContainer.appendChild(requestCard);
+    });
+  } catch (error) {
+    console.error('Error loading connection requests:', error);
+    document.getElementById('connection-requests').innerHTML = `
+      <div class="text-center py-6 text-red-500">
+        <p>Error loading connection requests. Please try again.</p>
+      </div>
+    `;
+  }
+}
+
+// Function to accept a connection request
+async function acceptConnectionRequest(requestId) {
+  try {
+    const response = await fetch(`/api/users/connections/accept/${requestId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -167,18 +500,96 @@ async function flagDocument(docId) {
     });
     
     if (response.ok) {
-      alert('Document flagged successfully');
-      // Refresh the documents list
-      const patientId = document.querySelector('#patientDocuments').dataset.patientId;
-      if (patientId) {
-        viewPatientDocuments(patientId);
-      }
+      // Refresh the connection requests and patients lists
+      loadConnectionRequests();
+      loadConnectedPatients();
     } else {
-      throw new Error('Failed to flag document');
+      const errorData = await response.json();
+      alert(`Error: ${errorData.error || 'Failed to accept connection request'}`);
     }
   } catch (error) {
-    console.error('Error flagging document:', error);
-    alert('Error flagging document. Please try again.');
+    console.error('Error accepting connection request:', error);
+    alert('Error accepting connection request. Please try again.');
+  }
+}
+
+// Function to reject a connection request
+async function rejectConnectionRequest(requestId) {
+  try {
+    const response = await fetch(`/api/users/connections/reject/${requestId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      // Refresh the connection requests list
+      loadConnectionRequests();
+    } else {
+      const errorData = await response.json();
+      alert(`Error: ${errorData.error || 'Failed to reject connection request'}`);
+    }
+  } catch (error) {
+    console.error('Error rejecting connection request:', error);
+    alert('Error rejecting connection request. Please try again.');
+  }
+}
+
+// Function to load connected patients
+async function loadConnectedPatients() {
+  try {
+    const patientsContainer = document.getElementById('my-patients');
+    const loadingElement = document.getElementById('loading-patients');
+    
+    const response = await fetch('/api/users/connections');
+    const data = await response.json();
+    
+    // Clear the container
+    patientsContainer.innerHTML = '';
+    
+    // Get connections that are patients
+    const patientConnections = (data.connections || []).filter(conn => conn.role === 'patient');
+    
+    if (patientConnections.length === 0) {
+      patientsContainer.innerHTML = `
+        <div class="text-center py-6 text-gray-500">
+          <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <p>You haven't connected with any patients yet</p>
+        </div>
+      `;
+      return;
+    }
+    
+    // Add each patient connection
+    patientConnections.forEach(patient => {
+      const patientCard = document.createElement('div');
+      patientCard.className = 'bg-gray-50 p-4 rounded mb-2';
+      patientCard.innerHTML = `
+        <div class="flex justify-between items-center">
+          <div>
+            <h3 class="font-semibold">${patient.displayName || 'Unknown Patient'}</h3>
+            <p class="text-sm text-gray-600">${patient.username ? '@' + patient.username : ''}</p>
+          </div>
+          <div>
+            <button onclick="viewPatientDocuments('${patient.id}')" 
+                    class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+              View Documents
+            </button>
+          </div>
+        </div>
+      `;
+      patientsContainer.appendChild(patientCard);
+    });
+  } catch (error) {
+    console.error('Error loading patients:', error);
+    document.getElementById('my-patients').innerHTML = `
+      <div class="text-center py-6 text-red-500">
+        <p>Error loading patients. Please try again.</p>
+      </div>
+    `;
   }
 }
 </script> 

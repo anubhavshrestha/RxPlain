@@ -1,33 +1,37 @@
-import { db } from '../config/firebase-admin.js';
+import { User, Doctor, Patient } from '../models/index.js';
 
 // Get user profile
 export const getUserProfile = async (req, res) => {
   try {
     const uid = req.user.uid;
     
-    // Get user data from Firestore
-    const userDoc = await db.collection('users').doc(uid).get();
+    // Get user data using our User class
+    const user = await User.findById(uid);
     
-    if (!userDoc.exists) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
     
-    const userData = userDoc.data();
-    
     // Prepare profile data based on role
     const profile = {
-      displayName: userData.displayName,
-      email: userData.email,
-      phone: userData.phone || '',
-      birthdate: userData.birthdate || '',
-      role: userData.role,
-      createdAt: userData.createdAt
+      displayName: user.displayName,
+      email: user.email,
+      phone: user.phone || '',
+      birthdate: user.dateOfBirth || '',
+      role: user.role,
+      createdAt: user.createdAt
     };
 
     // Add doctor-specific fields if user is a doctor
-    if (userData.role === 'doctor') {
-      profile.specialization = userData.specialization;
-      profile.licenseNumber = userData.licenseNumber;
+    if (user.role === 'doctor') {
+      profile.specialization = user.specialization;
+      profile.licenseNumber = user.licenseNumber;
+    }
+    
+    // Add patient-specific fields if user is a patient
+    if (user.role === 'patient') {
+      profile.allergies = user.allergies || [];
+      profile.medicalConditions = user.medicalConditions || [];
     }
     
     res.status(200).json({
@@ -44,59 +48,68 @@ export const getUserProfile = async (req, res) => {
 export const updateUserProfile = async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { displayName, phone, birthdate, specialization, licenseNumber } = req.body;
+    const { 
+      displayName, 
+      phone, 
+      birthdate, 
+      specialization, 
+      licenseNumber,
+      allergies,
+      medicalConditions
+    } = req.body;
     
     if (!displayName) {
       return res.status(400).json({ error: 'Name is required' });
     }
     
-    // Get current user data
-    const userDoc = await db.collection('users').doc(uid).get();
+    // Get current user using our User class
+    const user = await User.findById(uid);
     
-    if (!userDoc.exists) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    const userData = userDoc.data();
+    // Update basic user properties
+    user.displayName = displayName;
+    user.phone = phone || user.phone || '';
     
-    // Prepare update data
-    const updateData = {
-      displayName,
-      phone: phone || '',
-      birthdate: birthdate || '',
-      updatedAt: new Date()
-    };
-
-    // Add doctor-specific fields if user is a doctor
-    if (userData.role === 'doctor') {
+    // Update role-specific properties
+    if (user.role === 'doctor') {
       if (!specialization || !licenseNumber) {
         return res.status(400).json({ error: 'Specialization and license number are required for doctors' });
       }
-      updateData.specialization = specialization;
-      updateData.licenseNumber = licenseNumber;
+      user.specialization = specialization;
+      user.licenseNumber = licenseNumber;
+    } 
+    else if (user.role === 'patient') {
+      if (birthdate) user.dateOfBirth = birthdate;
+      if (allergies) user.allergies = allergies;
+      if (medicalConditions) user.medicalConditions = medicalConditions;
     }
     
-    // Update user document
-    await db.collection('users').doc(uid).update(updateData);
-    
-    // Get the updated user data
-    const updatedDoc = await db.collection('users').doc(uid).get();
-    const updatedUserData = updatedDoc.data();
+    // Save updated user
+    await user.save();
     
     // Prepare response data
     const profile = {
-      displayName: updatedUserData.displayName,
-      email: updatedUserData.email,
-      phone: updatedUserData.phone || '',
-      birthdate: updatedUserData.birthdate || '',
-      role: updatedUserData.role,
-      createdAt: updatedUserData.createdAt
+      displayName: user.displayName,
+      email: user.email,
+      phone: user.phone || '',
+      birthdate: user.dateOfBirth || '',
+      role: user.role,
+      createdAt: user.createdAt
     };
 
     // Add doctor-specific fields if user is a doctor
-    if (updatedUserData.role === 'doctor') {
-      profile.specialization = updatedUserData.specialization;
-      profile.licenseNumber = updatedUserData.licenseNumber;
+    if (user.role === 'doctor') {
+      profile.specialization = user.specialization;
+      profile.licenseNumber = user.licenseNumber;
+    }
+    
+    // Add patient-specific fields if user is a patient
+    if (user.role === 'patient') {
+      profile.allergies = user.allergies || [];
+      profile.medicalConditions = user.medicalConditions || [];
     }
     
     res.status(200).json({ 
